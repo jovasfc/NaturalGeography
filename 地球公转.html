@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球公转与自转演示 - 24节气</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Microsoft YaHei', sans-serif; background-color: #000; color: #fff; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        button {
+            background: #4CAF50;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover { background: #45a049; }
+        .label {
+            color: #fff;
+            font-family: sans-serif;
+            padding: 2px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .term-label {
+            font-size: 10px;
+            color: #aaa;
+        }
+        .major-term {
+            font-size: 14px;
+            color: #ffd700;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>地球公转与自转演示</h1>
+        <p>拖动鼠标旋转视角 | 滚动缩放 | 红色箭头指示阳光直射点</p>
+    </div>
+    <div id="controls">
+        <button id="toggleTerms">切换显示：全部节气</button>
+        <button id="togglePause">暂停/继续</button>
+        <div style="margin-top: 5px;">
+            <button class="pos-btn" data-angle="0">冬至</button>
+            <button class="pos-btn" data-angle="90">春分</button>
+            <button class="pos-btn" data-angle="180">夏至</button>
+            <button class="pos-btn" data-angle="270">秋分</button>
+        </div>
+        <div style="margin-top: 5px; font-size: 12px; color: #aaa;">
+            点击地球可暂停并放大查看细节
+        </div>
+        <div style="margin-top: 10px;">
+            <label>公转速度: <input type="range" id="speedRange" min="0" max="100" value="20"></label>
+        </div>
+        <div style="margin-top: 10px;">
+            <label style="font-size: 12px; color: #aaa;">视角中心：</label>
+            <button class="view-btn" data-target="sun" style="background: #ffcc00;">太阳</button>
+            <button class="view-btn" data-target="earth" style="background: #3b82f6;">地球</button>
+            <button class="view-btn" data-target="moon" style="background: #888;">月球</button>
+        </div>
+        <button id="resetView" style="margin-top: 5px; background: #555;">重置视角</button>
+    </div>
+
+    <!-- Import Three.js -->
+    <!-- Using a more robust import map or direct CDN links for modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- Configuration ---
+        const config = {
+            orbitRadiusX: 40, // Semi-major axis
+            orbitRadiusZ: 39.8, // Semi-minor axis (almost circular)
+            earthTilt: 23.44 * (Math.PI / 180), // Radians
+            sunSize: 5,
+            earthSize: 2,
+            moonSize: 0.5,
+            moonOrbitRadius: 4,
+            rotationSpeed: 0.02, // Earth self-rotation
+            revolutionSpeedBase: 0.0005,
+            revolutionSpeedMult: 1
+        };
+
+        // --- State ---
+        let isPaused = false;
+        let termDisplayMode = 0; // 0: All, 1: Major, 2: None
+        let orbitAngle = 0; // Current angle in orbit (radians)
+        let isZoomedIn = false;
+        let viewCenter = 'sun'; // 'sun', 'earth', 'moon'
+        const defaultCameraPos = new THREE.Vector3(0, 40, 80);
+
+        // --- 24 Solar Terms Data ---
+        // Assuming angle 0 is Vernal Equinox (Spring Equinox) at standard geometry?
+        // Let's define: Winter Solstice is at the "bottom" or "far right" depending on coords.
+        // We will align:
+        // Winter Solstice (Dongzhi): Earth is at +X (or similar), North Pole tilted AWAY from Sun.
+        // Let's set coordinate system: Sun at (0,0,0).
+        // Earth Axis is tilted in the Z direction (rotated around X) or X direction (rotated around Z).
+        // Let's say Earth axis is tilted towards +X.
+        // Then Winter Solstice is when Earth is at +X (Sun is -X relative to Earth). No, wait.
+        // If Axis tilts towards +X:
+        // - Earth at +X: Sun is at -X. Sunlight comes from -X. North pole (tilted +X) points AWAY from sun. -> Winter Solstice.
+        // - Earth at -X: Sun is at +X. Sunlight comes from +X. North pole (tilted +X) points TOWARDS sun. -> Summer Solstice.
+        // - Earth at +Z or -Z: Equinoxes.
+        
+        // Solar Terms order (starting from Spring Equinox usually, or just list them):
+        // Angles will be calculated based on 360/24 = 15 degrees each.
+        // Winter Solstice (Dongzhi) is our anchor at angle = 0 (Earth at +X).
+        // Terms proceed counter-clockwise (Earth orbits CCW).
+        const solarTerms = [
+            { name: "冬至", angle: 0, type: "major" },
+            { name: "小寒", angle: 15 },
+            { name: "大寒", angle: 30 },
+            { name: "立春", angle: 45 },
+            { name: "雨水", angle: 60 },
+            { name: "惊蛰", angle: 75 },
+            { name: "春分", angle: 90, type: "major" }, // Equator
+            { name: "清明", angle: 105 },
+            { name: "谷雨", angle: 120 },
+            { name: "立夏", angle: 135 },
+            { name: "小满", angle: 150 },
+            { name: "芒种", angle: 165 },
+            { name: "夏至", angle: 180, type: "major" }, // Tropic of Cancer
+            { name: "小暑", angle: 195 },
+            { name: "大暑", angle: 210 },
+            { name: "立秋", angle: 225 },
+            { name: "处暑", angle: 240 },
+            { name: "白露", angle: 255 },
+            { name: "秋分", angle: 270, type: "major" }, // Equator
+            { name: "寒露", angle: 285 },
+            { name: "霜降", angle: 300 },
+            { name: "立冬", angle: 315 },
+            { name: "小雪", angle: 330 },
+            { name: "大雪", angle: 345 }
+        ];
+
+        // --- Init Scene ---
+        const scene = new THREE.Scene();
+        // Starfield background
+        const loader = new THREE.TextureLoader();
+        scene.background = new THREE.Color(0x050510); // Deep space blue/black
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 40, 80);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        document.body.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, labelRenderer.domElement);
+        controls.enableDamping = true;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0x333333); // Match gemini version
+        scene.add(ambientLight);
+
+        // Sun Light (Point Light)
+        const sunLight = new THREE.PointLight(0xffffff, 2, 500); // Match gemini version
+        sunLight.position.set(0, 0, 0);
+        sunLight.castShadow = true;
+        scene.add(sunLight);
+
+        // --- Objects ---
+
+        // 1. Sun
+        const sunGeometry = new THREE.SphereGeometry(config.sunSize, 32, 32);
+        const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffdd00 }); // Emissive look
+        const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(sun);
+        // Sun glow (simple sprite)
+        const spriteMaterial = new THREE.SpriteMaterial({ 
+            map: new THREE.CanvasTexture(generateSprite()), 
+            color: 0xffaa00, 
+            blending: THREE.AdditiveBlending 
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(15, 15, 1);
+        sun.add(sprite);
+
+        // 2. Orbit Path (Ellipse)
+        const orbitCenterX = -4; // Shift orbit center (sqrt(40^2 - 39.8^2) ~ 4)
+        const orbitCurve = new THREE.EllipseCurve(
+            0, 0,            // ax, aY
+            config.orbitRadiusX, config.orbitRadiusZ, // xRadius, yRadius
+            0, 2 * Math.PI,  // aStartAngle, aEndAngle
+            false,           // aClockwise
+            0                // aRotation
+        );
+        const orbitPoints = orbitCurve.getPoints(100);
+        const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+        const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x444444 });
+        const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+        orbitLine.rotation.x = -Math.PI / 2; // Lie flat on XZ plane
+        orbitLine.position.set(orbitCenterX, 0, 0); // Shift visual orbit
+        scene.add(orbitLine);
+
+        // 3. Ecliptic Plane (Visual Guide) - Grid
+        // Removed as per user request
+        // const gridHelper = new THREE.GridHelper(100, 50, 0x222222, 0x111111);
+        // scene.add(gridHelper);
+        
+        // 4. Earth Group (Holds Earth and Moon, moves along orbit)
+        const earthSystemGroup = new THREE.Group();
+        scene.add(earthSystemGroup);
+
+        // Earth Tilt Group (Handles the 23.5 degree tilt)
+        const earthTiltGroup = new THREE.Group();
+        // Tilt axis: If Winter Solstice is at angle 0 (+X), and we want North Pole away from Sun,
+        // The tilt should be rotating around Z axis such that Top points towards +X.
+        // Wait. +X is where Earth is. Sun is at 0. Vector Sun->Earth is +X.
+        // If Top points towards +X, then North Pole points AWAY from Sun? No.
+        // Vector Earth->NorthPole has +X component. Vector Earth->Sun has -X component.
+        // So they point in opposite directions. Yes.
+        // So we rotate around Z axis by -23.5 degrees (to point Right) or +23.5?
+        // Let's visualize: Up is +Y. Rotate around Z clockwise (negative) -> Top goes Right (+X).
+        earthTiltGroup.rotation.z = -config.earthTilt; 
+        earthSystemGroup.add(earthTiltGroup);
+
+        // Earth Mesh
+        // Load Texture
+        const earthTexture = loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg');
+        const earthGeometry = new THREE.SphereGeometry(config.earthSize, 32, 32);
+        // Use Phong for day/night shading
+        const earthMaterial = new THREE.MeshPhongMaterial({ 
+            map: earthTexture,
+            specular: 0x333333,
+            shininess: 5,
+            emissive: 0x112244,
+            emissiveIntensity: 0.5
+        });
+        const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        earth.castShadow = true;
+        earth.receiveShadow = true; // Self shadow for day/night
+        earthTiltGroup.add(earth);
+
+        // Helper to create latitude rings
+        function createLatitudeLine(latitudeDeg, color) {
+            const rad = latitudeDeg * (Math.PI / 180);
+            const r = config.earthSize * Math.cos(rad); // Radius at this latitude
+            const y = config.earthSize * Math.sin(rad); // Height at this latitude
+            
+            const curve = new THREE.EllipseCurve(
+                0, 0,            // ax, aY
+                r, r,            // xRadius, yRadius
+                0, 2 * Math.PI,  // aStartAngle, aEndAngle
+                false,           // aClockwise
+                0                // aRotation
+            );
+            
+            const pts = curve.getPoints(64);
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
+            const line = new THREE.Line(geo, mat);
+            line.rotation.x = Math.PI / 2; // Rotate to lie on XZ plane
+            line.position.y = y;
+            return line;
+        }
+
+        // Add Tropics (Attach to Earth so they rotate with it)
+        const tropicCancer = createLatitudeLine(23.44, 0xffaa00); // Tropic of Cancer
+        earth.add(tropicCancer);
+        
+        const tropicCapricorn = createLatitudeLine(-23.44, 0xffaa00); // Tropic of Capricorn
+        earth.add(tropicCapricorn);
+
+        // Earth Axis Line
+        const axisGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, -config.earthSize * 1.5, 0),
+            new THREE.Vector3(0, config.earthSize * 1.5, 0)
+        ]);
+        const axisMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const earthAxis = new THREE.Line(axisGeometry, axisMaterial);
+        earthTiltGroup.add(earthAxis);
+
+        // Equatorial Plane
+        const equatorGeometry = new THREE.RingGeometry(config.earthSize + 0.1, config.earthSize + 1, 32);
+        const equatorMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ffff, 
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.3
+        });
+        const equator = new THREE.Mesh(equatorGeometry, equatorMaterial);
+        equator.rotation.x = Math.PI / 2; // Perpendicular to Y axis (which is the Earth's axis inside this group)
+        earthTiltGroup.add(equator);
+
+        // Direct Sunlight Arrow
+        // This needs to be in the earthSystemGroup but NOT in the tilt group?
+        // Or in the tilt group but rotated to point to sun?
+        // Let's put it in the earthTiltGroup so it moves with earth, but we update its orientation every frame.
+        const arrowDir = new THREE.Vector3(1, 0, 0);
+        const arrowOrigin = new THREE.Vector3(0, 0, 0); // Relative to Earth center
+        const arrowLength = config.earthSize + 8; // Longer shaft
+        const arrowColor = 0xff0000;
+        const sunlightArrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, arrowLength, arrowColor, 1.5, 0.8); // Smaller head: headLength, headWidth
+        earthTiltGroup.add(sunlightArrow); // We will update direction in animation loop
+        
+        // Sunlight Column (Cylinder)
+        const beamGeo = new THREE.CylinderGeometry(config.earthSize, config.earthSize, 10, 16, 1, true); // Columnar beam
+        // Actually, Sun is huge, so rays are parallel. Cylinder of radius = Earth radius?
+        // Let's make a beam representing "Direct Hit" zone or just a general sunlight direction.
+        // User asked for "Light Column illuminating day hemisphere".
+        // A yellow transparent cylinder pointing from Sun to Earth.
+        const beamMat = new THREE.MeshBasicMaterial({ 
+            color: 0xffffaa, 
+            transparent: true, 
+            opacity: 0.1, 
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const sunBeam = new THREE.Mesh(beamGeo, beamMat);
+        // We will position and orient this in animate loop
+        // It should be attached to earthSystemGroup (no tilt) so it always points to Sun easily.
+        earthSystemGroup.add(sunBeam);
+
+        // Moon
+        const moonGeometry = new THREE.SphereGeometry(config.moonSize, 16, 16);
+        const moonMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+        const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+        moon.castShadow = true;
+        moon.receiveShadow = true;
+        
+        const moonOrbitGroup = new THREE.Group(); // To handle moon orbit around earth
+        earthSystemGroup.add(moonOrbitGroup);
+        moonOrbitGroup.add(moon);
+        moon.position.set(config.moonOrbitRadius, 0, 0);
+
+        // --- Markers & Labels ---
+        
+        const termsObjects = [];
+
+        solarTerms.forEach(term => {
+            // Calculate position on orbit
+            // Angle needs conversion. Our 0 is at +X (Winter Solstice).
+            // Term angles are usually from Vernal Equinox? 
+            // My data: Winter Solstice at 0.
+            // Loop: angle in degrees converted to radians.
+            // Note: Orbit is CCW.
+            
+            const rad = term.angle * (Math.PI / 180);
+            const x = orbitCenterX + config.orbitRadiusX * Math.cos(rad);
+            const z = -config.orbitRadiusZ * Math.sin(rad); // Negate Z for Counter-Clockwise (Winter 0 -> Spring 90 -> Summer 180)
+
+            // Marker dot
+            const markerGeo = new THREE.SphereGeometry(0.3, 8, 8);
+            const markerMat = new THREE.MeshBasicMaterial({ color: term.type === 'major' ? 0xffd700 : 0xaaaaaa });
+            const marker = new THREE.Mesh(markerGeo, markerMat);
+            // In Three.js y-up: orbit is on XZ plane.
+            // Ellipse logic: x=cos, y=sin. Map y to z.
+            // Wait, coordinate system check:
+            // Camera at (0, 40, 80). Looking at origin.
+            // If Earth at +X (Winter Solstice), Sun at 0.
+            // Next term (CCW) -> +Z (Spring Equinox)?
+            // If x=R*cos(0)=R, z=0.
+            // If angle increases, cos decreases, sin increases.
+            // angle=90 -> x=0, z=R.
+            // Is Spring Equinox at +Z?
+            // If Earth at +Z, Sun at 0. Sunlight from -Z.
+            // North Pole is tilted towards +X.
+            // Earth at +Z: Sunlight hits "side" of the tilt. Equator? Yes.
+            // So +Z is Equinox.
+            // +X is Winter Solstice.
+            // -X is Summer Solstice.
+            // -Z is Autumn Equinox.
+            // So my angle mapping: 0=Winter, 90=Spring, 180=Summer, 270=Autumn.
+            // But usually Spring is 0 in astronomical coords? 
+            // The prompt asks for 24 Jieqi. I will stick to my defined angles relative to the simulation geometry.
+            
+            // Correction: Solar terms usually start Spring Equinox (0 deg).
+            // My array starts with Winter Solstice (0 deg for my simulation logic).
+            // So Spring Equinox is at 90 in my array.
+            
+            marker.position.set(x, 0, z); // z corresponds to sin(angle)
+            scene.add(marker);
+
+            // Label
+            const div = document.createElement('div');
+            div.className = `label ${term.type === 'major' ? 'major-term' : 'term-label'}`;
+            div.textContent = term.name;
+            const label = new CSS2DObject(div);
+            label.position.set(0, 1, 0);
+            marker.add(label);
+
+            termsObjects.push({ mesh: marker, label: label, data: term });
+        });
+
+        // Perihelion / Aphelion Markers
+        // Ellipse: x = a cos t, z = b sin t.
+        // Distance r = sqrt(x^2 + z^2).
+        // if a > b:
+        // Max distance (Aphelion) at cos t = +/- 1 (x axis).
+        // Min distance (Perihelion) at sin t = +/- 1 (z axis).
+        // Wait, standard ellipse with sun at focus is different.
+        // Simple ellipse centered at 0,0 has min/max at axes.
+        // If a=40, b=38. Max radius is 40 (at X axis), Min is 38 (at Z axis).
+        // But physically, Perihelion is when Earth is closest.
+        // In Keplerian orbit, Sun is at one focus, not center.
+        // Focus distance c = sqrt(a^2 - b^2). c = sqrt(1600 - 1444) = sqrt(156) ~ 12.5.
+        // If I want to be physically somewhat correct diagrammatically, I should offset the Sun.
+        // Or I just offset the orbit center so Sun is at focus.
+        // Let's shift the orbit center by -c along X?
+        // Let's keep it simple: Sun at center (0,0,0). Orbit is ellipse.
+        // Closest points are at Z axis (dist 38). Farthest at X axis (dist 40).
+        // Let's label them.
+        // At X (Winter Solstice in my model): Dist 40. Aphelion?
+        // At Z (Spring Equinox): Dist 38. Perihelion?
+        // Real world: Perihelion is in Jan (near Winter Solstice). Aphelion in July (near Summer).
+        // This contradicts the centered ellipse geometry where axes define min/max.
+        // To make it intuitive without complex Kepler math:
+        // I will just put the labels where the geometry dictates distance is max/min in *this* model.
+        // Or I manually place them to match the text labels roughly?
+        // Prompt asks for "Markers on orbit".
+        // I will place markers at X axis (Far) and Z axis (Close).
+        // Label: "远日点 (Aphelion)" at +/- X (Distance 40).
+        // Label: "近日点 (Perihelion)" at +/- Z (Distance 38).
+        // Note: This is diagrammatic. Real physics: Perihelion ~Jan 4. Winter Solstice Dec 21. Very close.
+        // So Winter Solstice should be near Perihelion.
+        // My Model: Winter Solstice (Angle 0, Pos +X). Distance = 40 (Max).
+        // This is backwards. Winter Solstice should be near Perihelion.
+        // Fix: Make X axis the Minor axis? Or Z axis the Major axis?
+        // Or rotate the Solar Terms?
+        // Let's swap radii.
+        // orbitRadiusX = 38 (Perihelion at X).
+        // orbitRadiusZ = 40.
+        // Then at Angle 0 (Winter Solstice, +X), distance is 38 (Close).
+        // At Angle 180 (Summer Solstice, -X), distance is 38 (Close).
+        // At Angle 90 (Spring, +Z), distance is 40 (Far).
+        // This makes Solstices close, Equinoxes far.
+        // Real world: Perihelion (Jan) -> Close. Aphelion (July) -> Far.
+        // This requires the Sun to be off-center.
+        // Let's Implement Off-Center Sun for better accuracy.
+        // Shift Orbit Center so Sun is at Focus.
+        // c = sqrt(40^2 - 38^2) = 12.5.
+        // Shift orbit geometry by x = +12.5?
+        // If Orbit Center is at (+12.5, 0), and Sun at (0,0).
+        // Earth at Angle 0 (Winter): Pos = Center + (38, 0) = (50.5, 0). Dist 50.5.
+        // Earth at Angle 180 (Summer): Pos = Center + (-38, 0) = (-25.5, 0). Dist 25.5.
+        // This creates distinct Perihelion/Aphelion.
+        // Summer Solstice (near Aphelion): Distance should be Far.
+        // Winter Solstice (near Perihelion): Distance should be Close.
+        // So, if Winter is at +X. We want +X to be close.
+        // Orbit Center should be at (-c, 0).
+        // Pos at 0 = Center + (a, 0) = (-c+a, 0). Dist = a-c. (Close).
+        // Pos at 180 = Center - (a, 0) = (-c-a, 0). Dist = a+c. (Far).
+        // Let's try this.
+        
+        const c = Math.sqrt(config.orbitRadiusX**2 - config.orbitRadiusZ**2); // Wait, X should be major axis?
+        // If I want Winter (+X) to be close, and X is major axis.
+        // Actually, let's just use a circle for motion path but offset it? No, ellipse is requested.
+        // Let's stick to X=Major (40), Z=Minor (38).
+        // c = sqrt(40^2 - 38^2) approx 12.5.
+        // I want +X (Winter) to be Close.
+        // So Orbit Center X needs to be such that (+40 + CenterX) is small.
+        // If CenterX = -12.
+        // +X point: 40 - 12 = 28.
+        // -X point: -40 - 12 = -52.
+        // So +X is Perihelion. -X is Aphelion.
+        // Winter Solstice (Angle 0) -> +X -> Perihelion. Matches reality (Jan).
+        // Summer Solstice (Angle 180) -> -X -> Aphelion. Matches reality (July).
+        // Great.
+        
+        // Add Perihelion/Aphelion Labels
+        function createLabel(text, x, z) {
+            const div = document.createElement('div');
+            div.className = 'label';
+            div.style.color = '#ff8888';
+            div.textContent = text;
+            const obj = new CSS2DObject(div);
+            obj.position.set(x, 0, z);
+            scene.add(obj);
+            return obj;
+        }
+        createLabel("近日点 (Perihelion)", 40 + orbitCenterX, 0);
+        createLabel("远日点 (Aphelion)", -40 + orbitCenterX, 0);
+
+        // --- Helper Functions ---
+
+        function generateSprite() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 200, 50, 1)');
+            gradient.addColorStop(0.4, 'rgba(255, 150, 0, 0.6)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 64, 64);
+            return canvas;
+        }
+
+        function updateLabels() {
+            termsObjects.forEach(item => {
+                if (termDisplayMode === 0) { // All
+                    item.label.visible = true;
+                } else if (termDisplayMode === 1) { // Major Only
+                    item.label.visible = item.data.type === 'major';
+                } else { // None
+                    item.label.visible = false;
+                }
+            });
+            
+            const btn = document.getElementById('toggleTerms');
+            if (termDisplayMode === 0) btn.textContent = "切换显示：全部节气";
+            else if (termDisplayMode === 1) btn.textContent = "切换显示：仅二分二至";
+            else btn.textContent = "切换显示：隐藏所有";
+        }
+
+        // --- Interaction ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // Intersect Earth?
+            // Note: Earth is inside earthSystemGroup -> earthTiltGroup -> earth
+            // We need to check intersection recursively
+            const intersects = raycaster.intersectObjects([earth]);
+
+            if (intersects.length > 0) {
+                // Clicked on Earth
+                isPaused = true;
+                isZoomedIn = true;
+                
+                // Move controls target to Earth
+                // Earth world position changes every frame
+                // We need to update controls target in animate loop if we want to follow it
+                // But for "inspection", let's snap to it.
+                
+                // Get Earth World Position
+                const earthWorldPos = new THREE.Vector3();
+                earth.getWorldPosition(earthWorldPos);
+                
+                controls.target.copy(earthWorldPos);
+                
+                // Move Camera closer (offset from Earth)
+                // Let's move it to 10 units away along the line from Earth to current Camera
+                const direction = new THREE.Vector3().subVectors(camera.position, earthWorldPos).normalize();
+                const newPos = earthWorldPos.clone().add(direction.multiplyScalar(15));
+                
+                // Simple lerp or set? Set for instant response
+                camera.position.copy(newPos);
+                controls.update();
+            }
+        });
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!isPaused) {
+                // Update Orbit Angle
+                const speed = parseFloat(document.getElementById('speedRange').value) * config.revolutionSpeedBase;
+                orbitAngle += speed;
+                if (orbitAngle > 2 * Math.PI) orbitAngle -= 2 * Math.PI;
+
+                // Calculate Earth Position (Ellipse offset by center)
+                // x = CenterX + a * cos(angle)
+                // z = -b * sin(angle) (Negative for CCW)
+                const x = orbitCenterX + config.orbitRadiusX * Math.cos(orbitAngle);
+                const z = -config.orbitRadiusZ * Math.sin(orbitAngle);
+                
+                earthSystemGroup.position.set(x, 0, z);
+
+                // Earth Self Rotation
+                // Rotate the Earth Mesh inside the tilt group
+                earth.rotation.y += config.rotationSpeed;
+
+                // Moon Orbit
+                moonOrbitGroup.rotation.y += 0.05;
+
+                // Update Sunlight Arrow
+                // We need the arrow to point from Earth Center to Surface (towards Sun).
+                // Sun is at 0,0,0. Earth is at earthSystemGroup.position.
+                // Vector Earth->Sun = (0 - x, 0 - 0, 0 - z).
+                const sunDir = new THREE.Vector3(-x, 0, -z).normalize();
+                
+                // The arrow is inside earthTiltGroup.
+                // earthTiltGroup is rotated by Z = -23.5 deg.
+                // We need to transform the sunDir into the local space of earthTiltGroup.
+                // Inverse rotation of Z axis.
+                const localSunDir = sunDir.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), config.earthTilt);
+                
+                // Point the arrow
+                // ArrowHelper(dir, origin, length, hex)
+                // Origin is slightly above earth surface
+                const surfacePoint = localSunDir.clone().multiplyScalar(config.earthSize);
+                
+                // We want arrow pointing AT the surface.
+                // So Arrow Position = Surface Point + Offset outwards.
+                // Arrow Direction = -localSunDir (inwards).
+                // Use longer arrow length defined earlier (config.earthSize + 8)
+                const arrowTotalLen = config.earthSize + 8;
+                const arrowPos = localSunDir.clone().multiplyScalar(arrowTotalLen);
+                sunlightArrow.position.copy(arrowPos);
+                sunlightArrow.setDirection(localSunDir.clone().negate());
+                // No need to set length every frame unless scaling, but good to be safe if we change it dynamically
+                sunlightArrow.setLength(arrowTotalLen - config.earthSize, 1.5, 0.8); 
+
+                // Update Night Hemisphere Shadow
+                // Rotate the night hemisphere to face away from the sun
+                // The hemisphere should have its "open" side pointing towards the sun
+                // so the dark side is on the night side
+
+                // Update Sun Beam
+                // Beam is in earthSystemGroup (untilted relative to orbit plane).
+                // It should point from Sun (remote) to Earth (0,0,0 local).
+                // Actually, let's make it point from Earth towards Sun.
+                // Position: Offset towards sun by half length.
+                // sunDir is Vector pointing TO Sun.
+                // Beam length 10.
+                const beamLen = 10;
+                const beamPos = sunDir.clone().multiplyScalar(config.earthSize + beamLen/2);
+                sunBeam.position.copy(beamPos);
+                // Align cylinder Y axis with sunDir
+                // Default cylinder is Y-up.
+                // Quaternion from Y-up to sunDir.
+                sunBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir);
+                // Rotate beam 90 deg so wide end faces Earth? 
+                // Cylinder Geometry: Top radius 0.5, Bottom 2.
+                // If Y axis points to Sun: Top is at Sun side, Bottom at Earth side.
+                // So Wide end is at Earth. Correct.
+            }
+
+            // Update camera target based on view center
+            if (viewCenter === 'sun') {
+                controls.target.set(0, 0, 0);
+            } else if (viewCenter === 'earth') {
+                const earthWorldPos = new THREE.Vector3();
+                earth.getWorldPosition(earthWorldPos);
+                controls.target.copy(earthWorldPos);
+            } else if (viewCenter === 'moon') {
+                const moonWorldPos = new THREE.Vector3();
+                moon.getWorldPosition(moonWorldPos);
+                controls.target.copy(moonWorldPos);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.getElementById('toggleTerms').addEventListener('click', () => {
+            termDisplayMode = (termDisplayMode + 1) % 3;
+            updateLabels();
+        });
+
+        document.getElementById('togglePause').addEventListener('click', () => {
+            isPaused = !isPaused;
+        });
+
+        function updateEarthPosition() {
+            // Calculate Earth Position (Ellipse offset by center)
+            // x = CenterX + a * cos(angle)
+            // z = -b * sin(angle) (Negative for CCW)
+            const x = orbitCenterX + config.orbitRadiusX * Math.cos(orbitAngle);
+            const z = -config.orbitRadiusZ * Math.sin(orbitAngle);
+            
+            earthSystemGroup.position.set(x, 0, z);
+
+            // Update Sunlight Arrow
+            const sunDir = new THREE.Vector3(-x, 0, -z).normalize();
+            const localSunDir = sunDir.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), config.earthTilt);
+            const arrowTotalLen = config.earthSize + 8;
+            const arrowPos = localSunDir.clone().multiplyScalar(arrowTotalLen);
+            sunlightArrow.position.copy(arrowPos);
+            sunlightArrow.setDirection(localSunDir.clone().negate());
+            sunlightArrow.setLength(arrowTotalLen - config.earthSize, 1.5, 0.8);
+
+            // Update Sun Beam
+            const beamLen = 10;
+            const beamPos = sunDir.clone().multiplyScalar(config.earthSize + beamLen/2);
+            sunBeam.position.copy(beamPos);
+            sunBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir);
+        }
+
+        document.querySelectorAll('.pos-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const angleDeg = parseFloat(e.target.dataset.angle);
+                const rad = angleDeg * (Math.PI / 180);
+                orbitAngle = rad;
+                isPaused = true; // Pause to let user see
+                updateEarthPosition(); // Force update immediately
+                
+                // If zoomed in, we need to update camera target too?
+                // Let's leave camera alone or maybe snap to it if already zoomed.
+                if (isZoomedIn) {
+                    const earthWorldPos = new THREE.Vector3();
+                    earth.getWorldPosition(earthWorldPos);
+                    controls.target.copy(earthWorldPos);
+                    
+                    // Keep camera relative offset? Or just look at it?
+                    // Just updating target is enough to keep it in view if camera is far enough,
+                    // but if camera is close, it might be weird.
+                    // Let's reset view slightly if zoomed in to ensure visibility?
+                    // Or better: update camera position to maintain relative view?
+                    // For simplicity, just update target so OrbitControls pivots around new position.
+                    controls.update();
+                }
+            });
+        });
+
+        document.getElementById('resetView').addEventListener('click', () => {
+            controls.target.set(0, 0, 0);
+            camera.position.copy(defaultCameraPos);
+            controls.update();
+            isZoomedIn = false;
+            viewCenter = 'sun';
+        });
+
+        // View center buttons
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                viewCenter = e.target.dataset.target;
+                isZoomedIn = false;
+                
+                // Adjust camera distance based on target
+                if (viewCenter === 'sun') {
+                    camera.position.copy(defaultCameraPos);
+                } else if (viewCenter === 'earth') {
+                    const earthWorldPos = new THREE.Vector3();
+                    earth.getWorldPosition(earthWorldPos);
+                    const offset = new THREE.Vector3(0, 15, 25);
+                    camera.position.copy(earthWorldPos.clone().add(offset));
+                } else if (viewCenter === 'moon') {
+                    const moonWorldPos = new THREE.Vector3();
+                    moon.getWorldPosition(moonWorldPos);
+                    const offset = new THREE.Vector3(0, 8, 12);
+                    camera.position.copy(moonWorldPos.clone().add(offset));
+                }
+                controls.update();
+            });
+        });
+
+        // Initialize Labels
+        updateLabels();
+
+        // Start
+        animate();
+
+    </script>
+</body>
+</html>

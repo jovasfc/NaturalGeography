@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三维大气环流 (真实流体特效版)</title>
+    <!-- 引入 Three.js 核心及 OrbitControls 相机控制 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ddd;
+            background: rgba(10, 15, 25, 0.85);
+            padding: 15px 20px;
+            border-radius: 12px;
+            pointer-events: auto;
+            width: 320px;
+            z-index: 100;
+            border: 1px solid #334;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+        }
+        h1 { margin: 0 0 12px 0; font-size: 18px; color: #4dabff; letter-spacing: 1px; }
+        .legend { font-size: 12px; line-height: 1.8; margin-bottom: 15px; }
+        .legend b { color: #fff; }
+        .badge { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+        .control-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        button {
+            background: #2a3545; color: white; border: 1px solid #4a5a75; padding: 6px 10px;
+            cursor: pointer; border-radius: 6px; font-size: 12px; font-weight: bold; transition: all 0.2s;
+            flex-grow: 1;
+        }
+        button:hover { background: #3a4a60; }
+        button.active { background: #0078d7; border-color: #4dabff; box-shadow: 0 0 10px rgba(77, 171, 255, 0.4); }
+        .slider-group {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #445;
+        }
+        .slider-group label { display: block; font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 8px; }
+        .slider-group span { color: #ffcc00; font-family: monospace; }
+        .slider-group input { width: 100%; cursor: pointer; }
+        .slider-desc { font-size: 11px; color: #9aa; margin-top: 5px; line-height: 1.4; }
+        .label-overlay {
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            font-weight: 800;
+            pointer-events: none;
+            text-shadow: 0px 0px 4px #000, 0px 0px 2px #000;
+            white-space: nowrap;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            transition: opacity 0.2s;
+        }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #4dabff; font-size: 20px; font-weight: bold; z-index: 200; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading">加载高精度地球纹理中...</div>
+
+<div id="ui">
+    <h1>全球大气环流动态模拟</h1>
+    <div class="legend">
+        <b>固定的地理标识：</b><br>
+        <span class="badge" style="background:#ff4444"></span> 赤道 (0°)<br>
+        <span class="badge" style="background:#ffff44"></span> 南北回归线 (虚线 23.5°)<br>
+        <span class="badge" style="background:#44ffff"></span> 南北极圈 (虚线 66.5°)<br>
+        <b>动力学表现：</b><br>
+        • 流场粒子展现风向，高度吻合科里奥利力。<br>
+        • 三圈环流剖面及气压带支持跨越赤道偏移。
+    </div>
+    
+    <div class="control-group">
+        <button id="toggle-cells" class="active">3D 三圈环流</button>
+        <button id="toggle-winds" class="active">地表风带粒子</button>
+        <button id="toggle-rotation" class="active">暂停自转</button>
+        <button id="toggle-single">单个剖面</button>
+        <button id="toggle-convergence">高亮辐合/辐散</button>
+        <button id="reset-cam">重置视角</button>
+    </div>
+
+    <div class="control-group" id="lat-controls" style="display: none;">
+        <button id="toggle-low-lat" class="active">低纬度环流</button>
+        <button id="toggle-mid-lat" class="active">中纬度环流</button>
+        <button id="toggle-high-lat" class="active">高纬度环流</button>
+    </div>
+
+    <div class="slider-group">
+        <label>太阳直射点: <span id="sun-lat-text">0.0° (春/秋分)</span></label>
+        <input type="range" id="sun-slider" min="-23.5" max="23.5" step="0.5" value="0">
+        <div class="slider-desc">拖动滑块模拟季节更替，观察气压带位移以及<b>信风越过赤道时的风向偏转反转</b>。</div>
+    </div>
+</div>
+
+<script>
+    let scene, camera, renderer, globe, pivot, controls;
+    let circulationGroup = new THREE.Group();
+    let windGroup = new THREE.Group();
+    let convergenceGroup = new THREE.Group();
+    let isRotating = true;
+    let singleCellMode = false;
+    let showConvergence = false;
+    let showLowLat = true;
+    let showMidLat = true;
+    let showHighLat = true;
+    
+    // UI 控制的气压带偏移量（气压带移动幅度大约为直射点移动幅度的 42%）
+    let seasonShift = 0; 
+    
+    // 气压带标签数据配置
+    let pressureZones = [
+        { baseLat: 0,   text: "赤道低压带", color: "#ff4444", element: null },
+        { baseLat: 30,  text: "副热带高压带", color: "#ffff66", element: null },
+        { baseLat: 60,  text: "副极地低压带", color: "#66ffff", element: null },
+        { baseLat: 90,  text: "极地高压带", color: "#ffffff", element: null },
+        { baseLat: -30, text: "副热带高压带", color: "#ffff66", element: null },
+        { baseLat: -60, text: "副极地低压带", color: "#66ffff", element: null },
+        { baseLat: -90, text: "极地高压带", color: "#ffffff", element: null }
+    ];
+    
+    // Nullschool 风场粒子数据
+    const NUM_PARTICLES = 4000;
+    let windParticles = [];
+    let windPositions, windColors, windGeometry;
+
+    const EARTH_RADIUS = 5;
+
+    function init() {
+        scene = new THREE.Scene();
+        
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(16, 10, 16);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 6;
+        controls.maxDistance = 30;
+        controls.enablePan = false;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+        sun.position.set(20, 10, 20);
+        scene.add(sun);
+        const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        backLight.position.set(-20, -10, -20);
+        scene.add(backLight);
+
+        pivot = new THREE.Group();
+        scene.add(pivot);
+
+        const texLoader = new THREE.TextureLoader();
+        const textureUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+        
+        const globeMat = new THREE.MeshPhongMaterial({ color: 0xcccccc, shininess: 15 });
+
+        texLoader.load(textureUrl, (tex) => {
+            globeMat.map = tex;
+            globeMat.color.setHex(0xffffff);
+            globeMat.needsUpdate = true;
+            document.getElementById('loading').style.display = 'none';
+        }, undefined, () => {
+            globeMat.color.setHex(0x1a3a6c);
+            document.getElementById('loading').style.display = 'none';
+        });
+
+        const globeGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+        globe = new THREE.Mesh(globeGeo, globeMat);
+        globe.rotation.y = -Math.PI / 2;
+        pivot.add(globe);
+
+        createSpecialLatitudes();
+        createCirculationCells(); // 初始生成
+        createNullschoolWinds();
+        createPressureLabels();
+        createConvergenceZones(); // 创建辐合/辐散带
+
+        pivot.add(circulationGroup);
+        pivot.add(windGroup);
+        pivot.add(convergenceGroup);
+
+        setupUI();
+        animate();
+    }
+
+    function createSpecialLatitudes() {
+        const latGroup = new THREE.Group();
+        function createThickDashedLine(latDeg, color, dashCount, thickness) {
+            const rad = latDeg * Math.PI / 180;
+            const yOffset = EARTH_RADIUS * Math.sin(rad);
+            const radius = EARTH_RADIUS * Math.cos(rad);
+            const group = new THREE.Group();
+            const angleStep = (Math.PI * 2) / dashCount;
+            const dashAngle = angleStep * 0.55; 
+            for(let i=0; i<dashCount; i++) {
+                const startAngle = i * angleStep;
+                const endAngle = startAngle + dashAngle;
+                class ArcCurve extends THREE.Curve {
+                    getPoint(t, optionalTarget = new THREE.Vector3()) {
+                        const angle = startAngle + (endAngle - startAngle) * t;
+                        return optionalTarget.set( radius * Math.cos(angle), yOffset, radius * Math.sin(angle) );
+                    }
+                }
+                const tubeGeo = new THREE.TubeGeometry(new ArcCurve(), 8, thickness, 6, false);
+                const mat = new THREE.MeshBasicMaterial({ color: color });
+                group.add(new THREE.Mesh(tubeGeo, mat));
+            }
+            return group;
+        }
+
+        const equatorGeo = new THREE.TorusGeometry(EARTH_RADIUS, 0.04, 16, 100);
+        const equatorMat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+        const equator = new THREE.Mesh(equatorGeo, equatorMat);
+        equator.rotation.x = Math.PI / 2;
+        latGroup.add(equator);
+
+        latGroup.add(createThickDashedLine(23.5, 0xffff44, 45, 0.03));
+        latGroup.add(createThickDashedLine(-23.5, 0xffff44, 45, 0.03));
+        latGroup.add(createThickDashedLine(66.5, 0x44ffff, 30, 0.025));
+        latGroup.add(createThickDashedLine(-66.5, 0x44ffff, 30, 0.025));
+
+        pivot.add(latGroup);
+    }
+
+    function createConvergenceZones() {
+        // 创建辐合带（赤道低压带、副极地低压带）和辐散带（副热带高压带、极地高压带）的高亮显示
+        // 辐合带：上升气流，用红色高亮
+        // 辐散带：下沉气流，用蓝色高亮
+        
+        const zones = [
+            { lat: seasonShift, type: 'convergence', color: 0xff3333 }, // 赤道低压带（辐合）
+            { lat: 30 + seasonShift, type: 'divergence', color: 0x3333ff }, // 北副热带高压带（辐散）
+            { lat: 60 + seasonShift, type: 'convergence', color: 0xff3333 }, // 北副极地低压带（辐合）
+            { lat: -30 + seasonShift, type: 'divergence', color: 0x3333ff }, // 南副热带高压带（辐散）
+            { lat: -60 + seasonShift, type: 'convergence', color: 0xff3333 } // 南副极地低压带（辐合）
+        ];
+
+        zones.forEach(zone => {
+            const rad = zone.lat * Math.PI / 180;
+            const yOffset = EARTH_RADIUS * Math.sin(rad);
+            const radius = EARTH_RADIUS * Math.cos(rad);
+            
+            // 创建发光的环（宽度再增加2倍）
+            const ringGeo = new THREE.TorusGeometry(radius, 0.3, 16, 100);
+            const ringMat = new THREE.MeshBasicMaterial({ 
+                color: zone.color, 
+                transparent: true, 
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = yOffset;
+            
+            convergenceGroup.add(ring);
+        });
+        
+        // 根据showConvergence变量设置可见性
+        convergenceGroup.visible = showConvergence;
+    }
+
+    function updateConvergenceZones() {
+        // 保存当前的可见性状态
+        const wasVisible = convergenceGroup.visible;
+        
+        // 清理现有的辐合/辐散带
+        while(convergenceGroup.children.length > 0) {
+            let child = convergenceGroup.children[0];
+            convergenceGroup.remove(child);
+            if(child.geometry) child.geometry.dispose();
+            if(child.material) child.material.dispose();
+        }
+        createConvergenceZones();
+        
+        // 恢复可见性状态
+        convergenceGroup.visible = wasVisible;
+    }
+
+    function buildCellCurve(latStart, latEnd, hAloft) {
+        const rS = EARTH_RADIUS + 0.05; 
+        const rA = EARTH_RADIUS + hAloft; 
+        const points = [];
+        const numSegments = 16;
+        for(let i=0; i<=numSegments; i++) points.push(new THREE.Vector2(latStart + (latEnd - latStart) * (i/numSegments), rS));
+        points.push(new THREE.Vector2(latEnd, (rS+rA)/2));
+        for(let i=0; i<=numSegments; i++) points.push(new THREE.Vector2(latEnd + (latStart - latEnd) * (i/numSegments), rA));
+        points.push(new THREE.Vector2(latStart, (rS+rA)/2));
+        points.push(new THREE.Vector2(latStart, rS)); 
+
+        const v3Points = points.map(p => {
+            const rad = p.x * Math.PI / 180;
+            return new THREE.Vector3(p.y * Math.cos(rad), p.y * Math.sin(rad), 0);
+        });
+        return new THREE.CatmullRomCurve3(v3Points, true, 'centripetal', 0.5);
+    }
+
+    // 动态生成三圈环流，加入 seasonShift 使得剖面跟随直射点移动
+    function createCirculationCells() {
+        // 清理现有的网格和粒子
+        while(circulationGroup.children.length > 0) {
+            let child = circulationGroup.children[0];
+            circulationGroup.remove(child);
+            if(child.geometry) child.geometry.dispose();
+            if(child.material) child.material.dispose();
+        }
+        circulationGroup.userData.particles = [];
+
+        // 根据 seasonShift 动态计算边界。极点不移动。
+        // 颜色与地面粒子流一致：信风黄色、西风绿色、极地蓝色
+        const cellConfigs = [
+            { s: 30 + seasonShift, e: seasonShift, h: 1.6, color: 0xffff00, latType: 'low' },   
+            { s: 30 + seasonShift, e: 60 + seasonShift, h: 1.2, color: 0x00ffaa, latType: 'mid' },  
+            { s: 90, e: 60 + seasonShift, h: 0.8, color: 0x00ccff, latType: 'high' },  
+            { s: -30 + seasonShift, e: seasonShift, h: 1.6, color: 0xffff00, latType: 'low' },  
+            { s: -30 + seasonShift, e: -60 + seasonShift, h: 1.2, color: 0x00ffaa, latType: 'mid' },
+            { s: -90, e: -60 + seasonShift, h: 0.8, color: 0x00ccff, latType: 'high' } 
+        ];
+
+        cellConfigs.forEach(cfg => {
+            // 根据纬度类型决定是否显示
+            let shouldShow = false;
+            if (cfg.latType === 'low' && showLowLat) shouldShow = true;
+            else if (cfg.latType === 'mid' && showMidLat) shouldShow = true;
+            else if (cfg.latType === 'high' && showHighLat) shouldShow = true;
+            
+            if (!shouldShow) return;
+            
+            const curve = buildCellCurve(cfg.s, cfg.e, cfg.h);
+            const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.02, 8, true);
+            
+            // 根据singleCellMode决定是创建多个剖面还是只创建一个
+            const lonStep = singleCellMode ? 360 : 45;
+            for (let lon = 0; lon < 360; lon += lonStep) {
+                const mesh = new THREE.Mesh(
+                    tubeGeo, 
+                    new THREE.MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.15, depthWrite: false })
+                );
+                mesh.rotation.y = -lon * Math.PI / 180;
+                
+                // 添加随轨迹运动的粒子点，使用对应纬度的颜色，增加粒子数量
+                for(let j=0; j<20; j++) {
+                    const dot = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.06, 16, 16),
+                        new THREE.MeshBasicMaterial({ color: cfg.color })
+                    );
+                    dot.userData = { curve: curve, progress: Math.random(), speed: 0.003 };
+                    mesh.add(dot);
+                    circulationGroup.userData.particles.push(dot);
+                }
+                circulationGroup.add(mesh);
+            }
+        });
+    }
+
+    function createNullschoolWinds() {
+        windGeometry = new THREE.BufferGeometry();
+        windPositions = new Float32Array(NUM_PARTICLES * 6); 
+        windColors = new Float32Array(NUM_PARTICLES * 6);    
+        
+        for(let i=0; i<NUM_PARTICLES; i++) {
+            windParticles.push({
+                lat: (Math.random() - 0.5) * 170,
+                lon: Math.random() * 360,
+                age: Math.random() * 80,
+                maxAge: 40 + Math.random() * 60
+            });
+        }
+
+        windGeometry.setAttribute('position', new THREE.BufferAttribute(windPositions, 3));
+        windGeometry.setAttribute('color', new THREE.BufferAttribute(windColors, 3));
+
+        const material = new THREE.LineBasicMaterial({
+            vertexColors: true, blending: THREE.AdditiveBlending,
+            transparent: true, opacity: 0.8, depthWrite: false, linewidth: 5
+        });
+
+        windGroup.add(new THREE.LineSegments(windGeometry, material));
+    }
+
+    function updateWindParticles() {
+        if(!windGroup.visible) return;
+
+        const pos = windGeometry.attributes.position.array;
+        const col = windGeometry.attributes.color.array;
+
+        // 获取动态气压带边界
+        let eqL = seasonShift;
+        let hN = 30 + seasonShift;
+        let lN = 60 + seasonShift;
+        let hS = -30 + seasonShift;
+        let lS = -60 + seasonShift;
+
+        for(let i=0; i<NUM_PARTICLES; i++) {
+            let p = windParticles[i];
+            p.age++;
+            if(p.age > p.maxAge) {
+                p.lat = (Math.random() - 0.5) * 170;
+                p.lon = Math.random() * 360;
+                p.age = 0;
+            }
+
+            let u = 0, v = 0; 
+            let speed = 0;
+            let baseColor = new THREE.Color();
+
+            // 1. 判断所处的动态风带，计算经向气压梯度力引起的风速大小和方向 (v)
+            if (p.lat > lN) {
+                // 北极地东风带
+                speed = Math.sin(((p.lat - lN) / (90 - lN)) * Math.PI);
+                v = -speed; baseColor.setHex(0x00ccff);
+            } else if (p.lat > hN) {
+                // 北半球西风带
+                speed = Math.sin(((p.lat - hN) / (lN - hN)) * Math.PI);
+                v = speed; baseColor.setHex(0x00ffaa);
+            } else if (p.lat > eqL) {
+                // 北半球信风带
+                speed = Math.sin(((p.lat - eqL) / (hN - eqL)) * Math.PI);
+                v = -speed; baseColor.setHex(0xffff00);
+            } else if (p.lat > hS) {
+                // 南半球信风带
+                speed = Math.sin(((p.lat - hS) / (eqL - hS)) * Math.PI);
+                v = speed; baseColor.setHex(0xffff00);
+            } else if (p.lat > lS) {
+                // 南半球西风带
+                speed = Math.sin(((p.lat - lS) / (hS - lS)) * Math.PI);
+                v = -speed; baseColor.setHex(0x00ffaa);
+            } else {
+                // 南极地东风带
+                speed = Math.sin(((p.lat + 90) / (lS + 90)) * Math.PI);
+                v = speed; baseColor.setHex(0x00ccff);
+            }
+
+            speed = Math.max(speed, 0.1); // 防止无风带完全卡死
+
+            // 2. 核心修正：加入科里奥利力（地转偏向力）
+            // 偏向力方向由粒子当前的【真实物理半球位置】(p.lat的绝对正负) 决定
+            // 完美实现"南半球信风越过赤道后，由左偏变为右偏"
+            let coriolis = Math.sin(p.lat * Math.PI / 180);
+            let deflectFactor = Math.sign(coriolis) * (0.6 + 0.8 * Math.abs(coriolis));
+
+            if (v < 0) {
+                // 风向北吹：北半球右偏向东(u>0)，南半球左偏向西(u<0)
+                u = speed * deflectFactor;
+            } else {
+                // 风向南吹：北半球右偏向西(u<0)，南半球左偏向东(u>0)
+                u = -speed * deflectFactor;
+            }
+
+            const speedScale = 0.35;
+            p.lon += u * speedScale;
+            p.lat += v * speedScale;
+
+            if (p.lat > 88) p.lat = 88;
+            if (p.lat < -88) p.lat = -88;
+            if (p.lon > 360) p.lon -= 360;
+            if (p.lon < 0) p.lon += 360;
+
+            const r = EARTH_RADIUS + 0.08;
+            const latR = p.lat * Math.PI / 180;
+            const lonR = p.lon * Math.PI / 180;
+            
+            const x = r * Math.cos(latR) * Math.cos(lonR);
+            const y = r * Math.sin(latR);
+            const z = r * Math.cos(latR) * Math.sin(lonR);
+
+            const tailLen = 10.0;
+            const tLat = p.lat - v * speedScale * tailLen;
+            const tLon = p.lon - u * speedScale * tailLen;
+            const tLatR = tLat * Math.PI / 180;
+            const tLonR = tLon * Math.PI / 180;
+            const tx = r * Math.cos(tLatR) * Math.cos(tLonR);
+            const ty = r * Math.sin(tLatR);
+            const tz = r * Math.cos(tLatR) * Math.sin(tLonR);
+
+            pos[i*6] = x;   pos[i*6+1] = y;   pos[i*6+2] = z;
+            pos[i*6+3] = tx;pos[i*6+4] = ty;pos[i*6+5] = tz;
+
+            let fade = 1.0 - Math.pow(p.age / p.maxAge, 2);
+            fade = Math.max(0, fade);
+            
+            col[i*6] = baseColor.r * fade; col[i*6+1] = baseColor.g * fade; col[i*6+2] = baseColor.b * fade;
+            col[i*6+3] = 0; col[i*6+4] = 0; col[i*6+5] = 0;
+        }
+
+        windGeometry.attributes.position.needsUpdate = true;
+        windGeometry.attributes.color.needsUpdate = true;
+    }
+
+    function createPressureLabels() {
+        pressureZones.forEach(z => {
+            const el = document.createElement('div');
+            el.className = 'label-overlay';
+            el.textContent = z.text;
+            el.style.color = z.color;
+            document.body.appendChild(el);
+            z.element = el;
+        });
+    }
+
+    function updateLabels() {
+        pressureZones.forEach(z => {
+            // 计算当前气压带真实动态纬度（极地高压带不受影响）
+            let currentLat = Math.abs(z.baseLat) === 90 ? z.baseLat : z.baseLat + seasonShift;
+            
+            const r = EARTH_RADIUS + 0.6;
+            const rad = currentLat * Math.PI / 180;
+            const pos = new THREE.Vector3(
+                r * Math.cos(rad) * Math.cos(0),
+                r * Math.sin(rad),
+                r * Math.cos(rad) * Math.sin(0)
+            ).applyMatrix4(pivot.matrixWorld);
+
+            const screenPos = pos.clone().project(camera);
+            const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (screenPos.y * -0.5 + 0.5) * window.innerHeight;
+            
+            z.element.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+            
+            const isVisible = pos.distanceTo(camera.position) < globe.position.distanceTo(camera.position) + EARTH_RADIUS;
+            z.element.style.opacity = isVisible ? '1' : '0';
+        });
+    }
+
+    function setupUI() {
+        document.getElementById('toggle-cells').onclick = function() {
+            this.classList.toggle('active');
+            circulationGroup.visible = !circulationGroup.visible;
+        };
+        document.getElementById('toggle-winds').onclick = function() {
+            this.classList.toggle('active');
+            windGroup.visible = !windGroup.visible;
+        };
+        document.getElementById('toggle-rotation').onclick = function() {
+            this.classList.toggle('active');
+            isRotating = !isRotating;
+            this.textContent = isRotating ? '暂停自转' : '继续自转';
+        };
+        document.getElementById('toggle-single').onclick = function() {
+            this.classList.toggle('active');
+            singleCellMode = !singleCellMode;
+            createCirculationCells();
+            // 显示或隐藏纬度控制面板
+            document.getElementById('lat-controls').style.display = singleCellMode ? 'flex' : 'none';
+        };
+        document.getElementById('toggle-low-lat').onclick = function() {
+            this.classList.toggle('active');
+            showLowLat = !showLowLat;
+            createCirculationCells();
+        };
+        document.getElementById('toggle-mid-lat').onclick = function() {
+            this.classList.toggle('active');
+            showMidLat = !showMidLat;
+            createCirculationCells();
+        };
+        document.getElementById('toggle-high-lat').onclick = function() {
+            this.classList.toggle('active');
+            showHighLat = !showHighLat;
+            createCirculationCells();
+        };
+        document.getElementById('toggle-convergence').onclick = function() {
+            this.classList.toggle('active');
+            showConvergence = !showConvergence;
+            convergenceGroup.visible = showConvergence;
+        };
+        document.getElementById('reset-cam').onclick = () => {
+            controls.reset();
+            camera.position.set(16, 10, 16);
+        };
+        
+        // 季节直射点拖动事件
+        document.getElementById('sun-slider').addEventListener('input', function(e) {
+            let sunLat = parseFloat(e.target.value);
+            // 气压带位移约为太阳直射点移动的 42%
+            seasonShift = sunLat * 0.42; 
+            
+            let txt = "春/秋分";
+            let color = "#ffcc00";
+            if(sunLat > 3) { txt = "夏半年 (北移)"; color = "#ff6666"; }
+            else if(sunLat < -3) { txt = "冬半年 (南移)"; color = "#66ccff"; }
+            
+            const textEl = document.getElementById('sun-lat-text');
+            textEl.innerText = `${sunLat > 0 ? '+' : ''}${sunLat.toFixed(1)}° (${txt})`;
+            textEl.style.color = color;
+
+            // 重新绘制匹配新纬度的三圈环流
+            createCirculationCells();
+            // 更新辐合/辐散带位置
+            updateConvergenceZones();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update(); 
+        if(isRotating) {
+            pivot.rotation.y += 0.0015; 
+        }
+
+        if (circulationGroup.visible && circulationGroup.userData.particles) {
+            circulationGroup.userData.particles.forEach(p => {
+                p.userData.progress += p.userData.speed;
+                if(p.userData.progress > 1) p.userData.progress = 0;
+                p.userData.curve.getPoint(p.userData.progress, p.position);
+            });
+        }
+
+        updateWindParticles();
+        updateLabels();
+
+        renderer.render(scene, camera);
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>

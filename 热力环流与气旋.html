@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>大气环流闭合系统模拟 - 双层气压标注版</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #02050a; font-family: sans-serif; touch-action: none; }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            pointer-events: none;
+            text-shadow: 1px 1px 4px black;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.8);
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: auto;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 100;
+        }
+        .toggle-btn {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .toggle-btn.active {
+            background: #0088ff;
+            border-color: #00aaff;
+            box-shadow: 0 0 10px rgba(0,136,255,0.5);
+        }
+        /* 气压标签样式 */
+        .pressure-label {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            font-size: 22px;
+            pointer-events: none;
+            user-select: none;
+            transform: translate(-50%, -50%);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-container">
+    <h1>大气动力学闭合环流 (垂直结构标注)</h1>
+    <p style="color: #00bbff;">左侧: 反气旋 (地面高压H -> 高空低压L)</p>
+    <p style="color: #ffaa00;">右侧: 气旋 (地面低压L -> 高空高压H)</p>
+</div>
+
+<!-- 气压显示标签容器 -->
+<div id="label-h-top" class="pressure-label" style="color: #ff8800;">L</div>
+<div id="label-h-bottom" class="pressure-label" style="color: #0088ff;">H</div>
+<div id="label-l-top" class="pressure-label" style="color: #0088ff;">H</div>
+<div id="label-l-bottom" class="pressure-label" style="color: #ff8800;">L</div>
+
+<div id="controls">
+    <span>缩放/旋转</span>
+    <button id="labelToggle" class="toggle-btn active">显示气压</button>
+    <button id="cloudToggle" class="toggle-btn active">显示云朵</button>
+    <button id="rainToggle" class="toggle-btn active">显示降雨</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    let scene, camera, renderer, particles = [], clouds = [], raindrops = [];
+    const particleCount = 10000; 
+    const rainCount = 1500;
+    const cloudCount = 60;
+    
+    const highCenter = new THREE.Vector3(-20, 0, 0);
+    const lowCenter = new THREE.Vector3(20, 0, 0);
+    const systemRadius = 3.5;
+    const topY = 14; 
+    const bottomY = 0.3; 
+
+    let showClouds = true;
+    let showRain = true;
+    let showLabels = true;
+
+    // 交互变量
+    let isDragging = false;
+    let prevMouse = { x: 0, y: 0 };
+    let zoomDistance = 60;
+    const minZoom = 20;
+    const maxZoom = 150;
+    let touchStartDist = 0;
+
+    // 获取所有标签
+    const labels = {
+        hTop: document.getElementById('label-h-top'),
+        hBottom: document.getElementById('label-h-bottom'),
+        lTop: document.getElementById('label-l-top'),
+        lBottom: document.getElementById('label-l-bottom')
+    };
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010409);
+
+        camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        updateCameraPosition();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const pl = new THREE.PointLight(0xffffff, 1.2);
+        pl.position.set(0, 40, 20);
+        scene.add(pl);
+
+        scene.add(new THREE.GridHelper(140, 40, 0x112233, 0x081018));
+
+        createMarker(highCenter, 0x0088ff);
+        createMarker(lowCenter, 0xff8800);
+
+        createGlobalParticles();
+        createClouds();
+        createRain();
+
+        setupInteractions();
+
+        window.addEventListener('resize', onWindowResize, false);
+        animate();
+    }
+
+    function updateCameraPosition() {
+        const phi = Math.PI / 4; 
+        const theta = scene.rotation.y;
+        camera.position.set(
+            zoomDistance * Math.sin(phi) * Math.sin(theta),
+            zoomDistance * Math.cos(phi),
+            zoomDistance * Math.sin(phi) * Math.cos(theta)
+        );
+        camera.lookAt(0, 5, 0);
+    }
+
+    function updateLabels() {
+        const labelElements = Object.values(labels);
+        if (!showLabels) {
+            labelElements.forEach(el => el.style.display = 'none');
+            return;
+        }
+        
+        labelElements.forEach(el => el.style.display = 'block');
+
+        // 标注逻辑：
+        // 反气旋 (highCenter): 顶部 L (高空低压), 底部 H (地面高压)
+        // 气旋 (lowCenter): 顶部 H (高空高压), 底部 L (地面低压)
+        const configs = [
+            { pos: highCenter.clone().setY(topY + 2), el: labels.hTop },
+            { pos: highCenter.clone().setY(2), el: labels.hBottom },
+            { pos: lowCenter.clone().setY(topY + 2), el: labels.lTop },
+            { pos: lowCenter.clone().setY(2), el: labels.lBottom }
+        ];
+        
+        configs.forEach(item => {
+            const vector = item.pos.clone().applyMatrix4(scene.matrixWorld).project(camera);
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+            
+            if(vector.z < 1) {
+                item.el.style.left = `${x}px`;
+                item.el.style.top = `${y}px`;
+                item.el.style.opacity = 1;
+            } else {
+                item.el.style.opacity = 0;
+            }
+        });
+    }
+
+    function setupInteractions() {
+        document.getElementById('labelToggle').onclick = function() {
+            showLabels = !showLabels;
+            this.classList.toggle('active');
+        };
+        document.getElementById('cloudToggle').onclick = function() {
+            showClouds = !showClouds;
+            this.classList.toggle('active');
+            clouds.forEach(c => c.visible = showClouds);
+        };
+        document.getElementById('rainToggle').onclick = function() {
+            showRain = !showRain;
+            this.classList.toggle('active');
+            raindrops.forEach(r => r.visible = showRain);
+        };
+
+        window.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.05;
+            zoomDistance += e.deltaY * zoomSpeed;
+            zoomDistance = Math.max(minZoom, Math.min(maxZoom, zoomDistance));
+            updateCameraPosition();
+        }, { passive: false });
+
+        document.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            prevMouse.x = e.clientX;
+            prevMouse.y = e.clientY;
+        });
+        document.addEventListener('mouseup', () => isDragging = false);
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const moveSpeed = 0.005;
+            scene.rotation.y += (e.clientX - prevMouse.x) * moveSpeed;
+            const deltaX = (e.clientY - prevMouse.y) * moveSpeed;
+            scene.rotation.x = Math.max(-Math.PI/4, Math.min(Math.PI/4, scene.rotation.x + deltaX));
+            prevMouse.x = e.clientX;
+            prevMouse.y = e.clientY;
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                prevMouse.x = e.touches[0].clientX;
+                prevMouse.y = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                touchStartDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                const moveSpeed = 0.008;
+                scene.rotation.y += (e.touches[0].clientX - prevMouse.x) * moveSpeed;
+                prevMouse.x = e.touches[0].clientX;
+                prevMouse.y = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                const currentDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const delta = (touchStartDist - currentDist) * 0.2;
+                zoomDistance += delta;
+                zoomDistance = Math.max(minZoom, Math.min(maxZoom, zoomDistance));
+                touchStartDist = currentDist;
+                updateCameraPosition();
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => isDragging = false);
+    }
+
+    function createMarker(pos, color) {
+        const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(systemRadius, 0.08, 8, 50),
+            new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.2 })
+        );
+        ring.position.set(pos.x, 0.1, pos.z);
+        ring.rotation.x = Math.PI / 2;
+        scene.add(ring);
+    }
+
+    function createClouds() {
+        const cloudGroup = new THREE.Group();
+        const geo = new THREE.SphereGeometry(1, 10, 10);
+        const maxDist = 5.0; 
+        
+        for (let i = 0; i < cloudCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * maxDist;
+            const sizeRatio = Math.max(0.2, 1.0 - (dist / maxDist));
+            
+            const mat = new THREE.MeshLambertMaterial({ 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: (0.2 + sizeRatio * 0.5) * (0.8 + Math.random() * 0.4) 
+            });
+            const cloudPart = new THREE.Mesh(geo, mat);
+            
+            cloudPart.position.set(
+                Math.cos(angle) * dist,
+                (Math.random() - 0.5) * 2.5, 
+                Math.sin(angle) * dist
+            );
+            
+            const baseScale = (0.5 + Math.random() * 1.0) * sizeRatio * 2.2;
+            cloudPart.scale.set(
+                baseScale * (1.5 + Math.random() * 0.8), 
+                baseScale * 0.8, 
+                baseScale * (1.1 + Math.random() * 0.5)
+            );
+            
+            cloudGroup.add(cloudPart);
+        }
+        cloudGroup.position.set(lowCenter.x, topY, lowCenter.z);
+        scene.add(cloudGroup);
+        clouds.push(cloudGroup);
+    }
+
+    function createRain() {
+        const rainGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.6);
+        const rainMat = new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.4 });
+        
+        for (let i = 0; i < rainCount; i++) {
+            const drop = new THREE.Mesh(rainGeo, rainMat);
+            resetRaindrop(drop);
+            scene.add(drop);
+            raindrops.push(drop);
+        }
+    }
+
+    function resetRaindrop(drop) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * (systemRadius + 1);
+        drop.position.set(
+            lowCenter.x + Math.cos(angle) * dist,
+            topY - Math.random() * 6,
+            lowCenter.z + Math.sin(angle) * dist
+        );
+        drop.userData.speed = 0.2 + Math.random() * 0.2;
+    }
+
+    function createGlobalParticles() {
+        const pGeo = new THREE.SphereGeometry(0.07, 4, 4);
+        for (let i = 0; i < particleCount; i++) {
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+            const p = new THREE.Mesh(pGeo, mat);
+            p.userData = { 
+                phase: Math.random() * 4,
+                speed: 0.18 + Math.random() * 0.12, 
+                rotSpeed: 0.07 + Math.random() * 0.03,
+                offsetZ: (Math.random() - 0.5) * 8
+            }; 
+            resetPosition(p);
+            scene.add(p);
+            particles.push(p);
+        }
+    }
+
+    function resetPosition(p) {
+        const phase = Math.floor(p.userData.phase);
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * systemRadius;
+        if (phase === 0) p.position.set(highCenter.x + Math.cos(angle)*r, topY * Math.random(), highCenter.z + Math.sin(angle)*r);
+        else if (phase === 1) p.position.set(highCenter.x, bottomY, p.userData.offsetZ);
+        else if (phase === 2) p.position.set(lowCenter.x + Math.cos(angle)*r, topY * Math.random(), lowCenter.z + Math.sin(angle)*r);
+        else p.position.set(lowCenter.x, topY, p.userData.offsetZ);
+    }
+
+    function rotatePoint(point, center, angle) {
+        const x = point.x - center.x;
+        const z = point.z - center.z;
+        point.x = center.x + (x * Math.cos(angle) - z * Math.sin(angle));
+        point.z = center.z + (x * Math.sin(angle) + z * Math.cos(angle));
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if (showClouds) {
+            clouds.forEach(c => {
+                c.rotation.y -= 0.003;
+            });
+        }
+
+        if (showRain) {
+            raindrops.forEach(r => {
+                r.position.y -= r.userData.speed;
+                rotatePoint(r.position, lowCenter, -0.015);
+                if (r.position.y < bottomY) {
+                    resetRaindrop(r);
+                    r.position.y = topY;
+                }
+            });
+        }
+
+        particles.forEach(p => {
+            const ud = p.userData;
+            const phase = ud.phase;
+
+            if (phase < 1) { 
+                p.position.y -= ud.speed * 0.5;
+                rotatePoint(p.position, highCenter, ud.rotSpeed);
+                p.material.color.setHex(0x00bbff);
+                if (p.position.y <= bottomY) { p.position.y = bottomY; ud.phase = 1; }
+            } 
+            else if (phase < 2) { 
+                p.material.color.setHex(0xffff00);
+                const distL = p.position.distanceTo(new THREE.Vector3(lowCenter.x, bottomY, p.position.z));
+                const toL = new THREE.Vector3(lowCenter.x, bottomY, ud.offsetZ).sub(p.position).normalize();
+                p.position.addScaledVector(toL, ud.speed * 1.5);
+                if (distL < 3 || p.position.x > lowCenter.x - 1) ud.phase = 2;
+            } 
+            else if (phase < 3) { 
+                p.position.y += ud.speed * 0.5;
+                rotatePoint(p.position, lowCenter, -ud.rotSpeed);
+                p.material.color.setHex(0xffaa00);
+                if (p.position.y >= topY) { p.position.y = topY; ud.phase = 3; }
+            } 
+            else { 
+                p.material.color.setHex(0x00ff88);
+                const distH = p.position.distanceTo(new THREE.Vector3(highCenter.x, topY, p.position.z));
+                const toH = new THREE.Vector3(highCenter.x, topY, ud.offsetZ).sub(p.position).normalize();
+                p.position.addScaledVector(toH, ud.speed * 1.6);
+                if (distH < 3 || p.position.x < highCenter.x + 1) ud.phase = 0;
+            }
+        });
+
+        updateLabels();
+        renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>

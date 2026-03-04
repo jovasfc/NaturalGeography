@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>地球大气环流模型</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 300px;
+            font-size: 14px;
+            line-height: 1.5;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .info-panel h2 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            padding-bottom: 8px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div class="info-panel">
+        <h2>地球大气环流模型</h2>
+        <p>本模型展示了地球大气环流系统，包括：</p>
+        <ul>
+            <li>哈得来环流 (0°-30°)</li>
+            <li>费雷尔环流 (30°-60°)</li>
+            <li>极地环流 (60°-90°)</li>
+            <li>沃克环流 (赤道太平洋)</li>
+        </ul>
+        <p>使用右侧控制面板可以切换不同的显示元素。</p>
+        <p>鼠标拖动可旋转视角，滚轮可缩放。</p>
+    </div>
+    
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000);
+        document.body.appendChild(renderer.domElement);
+
+        // Earth sphere
+        const earthGeometry = new THREE.SphereGeometry(5, 64, 64);
+        const earthMaterial = new THREE.MeshBasicMaterial({
+            map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg')
+        });
+        const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        scene.add(earth);
+
+        // Latitude/Longitude grid
+        const gridMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x666666,
+            linewidth: 3
+        });
+
+        // 虚线样式设置
+        const dashedMaterial = (color) => new THREE.LineDashedMaterial({
+            color: color,
+            linewidth: 4,
+            dashSize: 0.5,
+            gapSize: 0.3
+        });
+
+        // 创建经线（间隔30度）
+        const longitudeLines = new THREE.Group();
+        for(let lon = -180; lon < 180; lon += 30) {
+            const points = [];
+            for(let lat = -90; lat <= 90; lat += 1) {
+                const phi = THREE.MathUtils.degToRad(90 - lat);
+                const theta = THREE.MathUtils.degToRad(lon);
+                const radius = 5.05;
+                points.push(new THREE.Vector3().setFromSphericalCoords(radius, phi, theta));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            longitudeLines.add(new THREE.Line(geometry, gridMaterial));
+        }
+
+        // 创建纬线（赤道、回归线、极圈等）
+        const latitudeLines = new THREE.Group();
+        const specialLatitudes = [
+            { lat: 0, material: new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 4 }) }, // 赤道红色
+            { lat: 23.5, material: dashedMaterial(0xffa500) }, // 北回归线橙色虚线
+            { lat: -23.5, material: dashedMaterial(0xffa500) }, // 南回归线橙色虚线
+            { lat: 30, material: new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 }) }, // 北纬30°绿色实线
+            { lat: -30, material: new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 }) }, // 南纬30°绿色实线
+            { lat: 60, material: new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 3 }) }, // 北纬60°青色实线
+            { lat: -60, material: new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 3 }) }, // 南纬60°青色实线
+            { lat: 66.5, material: dashedMaterial(0xffa500) }, // 北极圈橙色虚线
+            { lat: -66.5, material: dashedMaterial(0xffa500) } // 南极圈橙色虚线
+        ];
+
+        // 添加气压带标注
+        const createPressureBand = (minLat, maxLat, color, opacity = 0.3, name) => {
+            const segments = 64;
+            const phiStart = THREE.MathUtils.degToRad(90 - maxLat);
+            const phiLength = THREE.MathUtils.degToRad(maxLat - minLat);
+            const thetaStart = 0;
+            const thetaLength = 2 * Math.PI;
+            
+            const geometry = new THREE.SphereGeometry(
+                5.1,
+                segments,
+                segments,
+                thetaStart,
+                thetaLength,
+                phiStart,
+                phiLength
+            );
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                side: THREE.DoubleSide
+            });
+            
+            const band = new THREE.Mesh(geometry, material);
+            
+            // 创建文本标签
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'pressure-band-label';
+            labelDiv.textContent = name;
+            labelDiv.style.position = 'absolute';
+            
+            // 根据纬度设置标签颜色 - 南半球为橙色
+            const isSouthern = minLat < 0;
+            labelDiv.style.color = '#FFFFFF';
+            labelDiv.style.backgroundColor = isSouthern ? 'rgba(255,140,0,0.7)' : 'rgba(0,0,0,0.5)';
+            
+            labelDiv.style.padding = '2px 5px';
+            labelDiv.style.borderRadius = '3px';
+            labelDiv.style.fontSize = '12px';
+            labelDiv.style.fontWeight = 'bold';
+            labelDiv.style.pointerEvents = 'none';
+            labelDiv.style.display = 'block';
+            document.body.appendChild(labelDiv);
+            
+            // 创建标记点
+            const markerGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const markerMaterial = new THREE.MeshBasicMaterial({ color: color });
+            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+            
+            // 存储标签元素和中心位置
+            const centerLat = (minLat + maxLat) / 2;
+            const centerPhi = THREE.MathUtils.degToRad(90 - centerLat);
+            const centerPos = new THREE.Vector3().setFromSphericalCoords(5.2, centerPhi, 0);
+            
+            return { 
+                mesh: band, 
+                label: labelDiv, 
+                centerPos: centerPos,
+                marker: marker,
+                originalText: name,  // 保存原始文本
+                isSouthern: isSouthern,  // 添加南半球标记
+                originalMinLat: minLat,  // 保存原始最小纬度
+                originalMaxLat: maxLat   // 保存原始最大纬度
+            };
+        };
+        
+        // 创建各气压带
+        const pressureBands = [
+            // 低压带 - 橙色
+            createPressureBand(-5, 5, 0xFFA500, 0.3, "赤道低压带"),
+            createPressureBand(55, 65, 0xFFA500, 0.3, "副极地低压带"),
+            createPressureBand(-65, -55, 0xFFA500, 0.3, "南副极地低压带"),
+            
+            // 高压带 - 蓝色
+            createPressureBand(25, 35, 0x4169E1, 0.3, "副热带高压带"),
+            createPressureBand(-35, -25, 0x4169E1, 0.3, "南副热带高压带"),
+            createPressureBand(85, 90, 0x4169E1, 0.3, "极地高压带"),
+            createPressureBand(-90, -85, 0x4169E1, 0.3, "南极地高压带")
+        ];
+        
+        // 将气压带和标记点添加到场景
+        pressureBands.forEach(band => {
+            scene.add(band.mesh);
+            scene.add(band.marker);
+            // 默认隐藏气压带和标记
+            band.mesh.visible = false;
+            band.marker.visible = false;
+            band.label.style.display = 'none';
+        });
+        
+        // 创建按钮函数
+        function createToggleButton(text, parent, color) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.style.padding = '8px 12px';
+            button.style.margin = '4px 0';
+            button.style.backgroundColor = color;
+            button.style.color = 'white';
+            button.style.border = 'none';
+            button.style.borderRadius = '4px';
+            button.style.cursor = 'pointer';
+            button.style.fontWeight = 'bold';
+            button.style.width = '100%';
+            button.style.transition = 'all 0.2s ease';
+            button.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+            
+            // 添加悬停效果
+            button.addEventListener('mouseover', () => {
+                button.style.backgroundColor = lightenColor(color, 20);
+                button.style.transform = 'translateY(-2px)';
+                button.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            });
+            
+            button.addEventListener('mouseout', () => {
+                button.style.backgroundColor = color;
+                button.style.transform = 'translateY(0)';
+                button.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+            });
+            
+            parent.appendChild(button);
+            return button;
+        }
+        
+        // 辅助函数：使颜色变亮
+        function lightenColor(color, percent) {
+            const num = parseInt(color.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = (num >> 16) + amt;
+            const G = (num >> 8 & 0x00FF) + amt;
+            const B = (num & 0x0000FF) + amt;
+            
+            return '#' + (
+                0x1000000 + 
+                (R < 255 ? R : 255) * 0x10000 + 
+                (G < 255 ? G : 255) * 0x100 + 
+                (B < 255 ? B : 255)
+            ).toString(16).slice(1);
+        }
+        
+        // 添加控制面板
+        const controlPanel = document.createElement('div');
+        controlPanel.style.position = 'fixed';
+        controlPanel.style.top = '20px'; // 从60px改为20px，使控制面板上移
+        controlPanel.style.right = '20px';
+        controlPanel.style.display = 'flex';
+        controlPanel.style.flexDirection = 'column';
+        controlPanel.style.gap = '8px';
+        controlPanel.style.backgroundColor = 'rgba(0,0,0,0.75)';
+        controlPanel.style.padding = '18px';
+        controlPanel.style.borderRadius = '10px';
+        controlPanel.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
+        controlPanel.style.backdropFilter = 'blur(5px)';
+        controlPanel.style.border = '1px solid rgba(255,255,255,0.1)';
+        document.body.appendChild(controlPanel);
+        
+        // 添加控制面板标题
+        const panelTitle = document.createElement('div');
+        panelTitle.textContent = '控制面板';
+        panelTitle.style.color = 'white';
+        panelTitle.style.fontSize = '18px';
+        panelTitle.style.fontWeight = 'bold';
+        panelTitle.style.marginBottom = '12px';
+        panelTitle.style.textAlign = 'center';
+        panelTitle.style.borderBottom = '1px solid rgba(255,255,255,0.3)';
+        panelTitle.style.paddingBottom = '8px';
+        panelTitle.style.letterSpacing = '1px';
+        controlPanel.appendChild(panelTitle);
+        
+        // 添加气压带控制按钮
+        const pressureBandToggle = createToggleButton('显示气压带', controlPanel, '#3498db');
+        
+        // 添加标签显示控制变量和按钮
+        let labelsVisible = true;
+        const labelToggle = createToggleButton('隐藏标签', controlPanel, '#f39c12');
+        
+        pressureBandToggle.addEventListener('click', () => {
+            const isVisible = pressureBands[0].mesh.visible;
+            const newVisibility = !isVisible;
+            pressureBands.forEach(band => {
+                band.mesh.visible = newVisibility;
+                band.marker.visible = newVisibility && labelsVisible;
+                band.label.style.display = newVisibility && labelsVisible ? 'block' : 'none';
+            });
+            pressureBandToggle.textContent = newVisibility ? '隐藏气压带' : '显示气压带';
+        });
+        
+        labelToggle.addEventListener('click', () => {
+            labelsVisible = !labelsVisible;
+            pressureBands.forEach(band => {
+                if (band.mesh.visible) {
+                    band.label.style.display = labelsVisible ? 'block' : 'none';
+                    band.marker.visible = labelsVisible;
+                }
+            });
+            labelToggle.textContent = labelsVisible ? '隐藏标签' : '显示标签';
+        });
+
+        // 添加地球显示开关控件
+        const earthToggle = createToggleButton('隐藏地球', controlPanel, '#e74c3c');
+        earthToggle.addEventListener('click', () => {
+            earth.visible = !earth.visible;
+            earthToggle.textContent = earth.visible ? '隐藏地球' : '显示地球';
+        });
+
+        // 添加经纬线控制按钮
+        const gridToggle = createToggleButton('隐藏经纬线', controlPanel, '#9b59b6');
+        gridToggle.addEventListener('click', () => {
+            const isVisible = longitudeLines.visible;
+            longitudeLines.visible = !isVisible;
+            latitudeLines.visible = !isVisible;
+            gridToggle.textContent = !isVisible ? '隐藏经纬线' : '显示经纬线';
+        });
+
+        // 渲染纬线
+        specialLatitudes.forEach(({ lat, material }) => {
+            const points = [];
+            for(let lon = 0; lon <= 360; lon += 1) {
+                const phi = THREE.MathUtils.degToRad(90 - lat);
+                const theta = THREE.MathUtils.degToRad(lon);
+                const radius = 5.05;
+                points.push(new THREE.Vector3().setFromSphericalCoords(radius, phi, theta));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(geometry, material);
+            line.computeLineDistances(); // 虚线需要计算距离
+            latitudeLines.add(line);
+        });
+
+        scene.add(longitudeLines);
+        scene.add(latitudeLines);
+        
+        // 设置相机位置
+        camera.position.z = 15;
+
+        // 初始化鼠标控制器
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 修改环流剖面创建函数
+        const createCirculationProfile = (latRange, color, isFerrellCell = false, isSouthern = false, longitudeSpan = 30) => {
+            const group = new THREE.Group();
+            const baseRadius = 5.5;
+            const heightOffset = 1.5;
+            
+            const startLongitude = 0;
+            const endLongitude = THREE.MathUtils.degToRad(longitudeSpan);
+            
+            const startLat = isFerrellCell ? latRange[1] : latRange[0];
+            const endLat = isFerrellCell ? latRange[0] : latRange[1];
+            
+            let actualStartLon, actualEndLon;
+            
+            if (isSouthern) {
+                actualStartLon = isFerrellCell ? startLongitude : endLongitude;
+                actualEndLon = isFerrellCell ? endLongitude : startLongitude;
+            } else {
+                actualStartLon = isFerrellCell ? endLongitude : startLongitude;
+                actualEndLon = isFerrellCell ? startLongitude : endLongitude;
+            }
+            
+            // 创建上部贝塞尔曲线
+            const upperCurve = new THREE.CubicBezierCurve3(
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius, 
+                    THREE.MathUtils.degToRad(90 - startLat), 
+                    actualStartLon
+                ),
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius + heightOffset,
+                    THREE.MathUtils.degToRad(90 - startLat), 
+                    isFerrellCell ? actualStartLon - endLongitude*0.3 : actualStartLon + endLongitude/3
+                ),
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius + heightOffset,
+                    THREE.MathUtils.degToRad(90 - endLat),
+                    isFerrellCell ? actualStartLon - endLongitude*0.6 : actualStartLon + endLongitude*2/3
+                ),
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius,
+                    THREE.MathUtils.degToRad(90 - endLat),
+                    actualEndLon
+                )
+            );
+            
+            // 创建下部贝塞尔曲线（地面返回部分）
+            const lowerCurve = new THREE.CubicBezierCurve3(
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius,
+                    THREE.MathUtils.degToRad(90 - endLat),
+                    actualEndLon
+                ),
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius - 0.1,
+                    THREE.MathUtils.degToRad(90 - endLat),
+                    isSouthern ? 
+                        (isFerrellCell ? actualEndLon - endLongitude*0.3 : actualEndLon + endLongitude/3) :
+                        (isFerrellCell ? actualEndLon + endLongitude*0.3 : actualEndLon - endLongitude/3)
+                ),
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius - 0.1,
+                    THREE.MathUtils.degToRad(90 - startLat),
+                    isSouthern ? 
+                        (isFerrellCell ? actualEndLon - endLongitude*0.6 : actualEndLon + endLongitude*2/3) :
+                        (isFerrellCell ? actualEndLon + endLongitude*0.6 : actualEndLon - endLongitude*2/3)
+                ),
+                new THREE.Vector3().setFromSphericalCoords(
+                    baseRadius,
+                    THREE.MathUtils.degToRad(90 - startLat),
+                    actualStartLon
+                )
+            );
+            
+            // 合并两条曲线的点以创建完整的循环
+            const combinedCurve = {
+                getPoint: function(t) {
+                    if (t < 0.5) {
+                        return upperCurve.getPoint(t * 2);
+                    } else {
+                        return lowerCurve.getPoint((t - 0.5) * 2);
+                    }
+                }
+            };
+        
+            // 创建上部管道几何体
+            const upperTubeGeometry = new THREE.TubeGeometry(upperCurve, 64, 0.1, 8, false);
+            const upperMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.7,
+                depthWrite: false
+            });
+            
+            // 创建下部管道几何体
+            const lowerTubeGeometry = new THREE.TubeGeometry(lowerCurve, 64, 0.1, 8, false);
+            const lowerMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.4,
+                depthWrite: false
+            });
+        
+            // 创建流动粒子
+            const particles = new THREE.BufferGeometry();
+            const positions = new Float32Array(20 * 3); // 从60*3减少到40*3，约为三分之二
+            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const particleSystem = new THREE.Points(
+                particles,
+                new THREE.PointsMaterial({ 
+                    color: color, 
+                    size: 0.15,  // 增加粒子大小
+                    transparent: true,
+                    opacity: 1.0  // 增加不透明度到最大
+                })
+            );
+        
+            group.add(new THREE.Mesh(upperTubeGeometry, upperMaterial));
+            group.add(new THREE.Mesh(lowerTubeGeometry, lowerMaterial));
+            group.add(particleSystem);
+            
+            return { group, curve: combinedCurve };
+        };
+
+        // 创建环流剖面
+        const commonSpeed = 0.004;
+        let circulations = [
+            { lat: [1, 30], color: 0xFF4500, speed: commonSpeed, isFerrellCell: false, type: 'hadley', isSouthern: false, longitudeSpan: 30 },
+            { lat: [30, 60], color: 0x32CD32, speed: commonSpeed, isFerrellCell: true, type: 'ferrell', isSouthern: false, longitudeSpan: 45 },
+            { lat: [60, 85], color: 0x4169E1, speed: commonSpeed, isFerrellCell: false, type: 'polar', isSouthern: false, longitudeSpan: 90 }
+        ].map(c => ({ ...c, ...createCirculationProfile(c.lat, c.color, c.isFerrellCell, c.isSouthern, c.longitudeSpan) }));
+
+        // 创建沃克环流函数
+        const createWalkerCirculation = (lat, lonRange, color, speed = 0.004) => {
+            const group = new THREE.Group();
+            const baseRadius = 5.5;
+            const heightOffset = 1.0;
+            
+            // 将经度转换为弧度
+            const startLon = THREE.MathUtils.degToRad(lonRange[0]);
+            const endLon = THREE.MathUtils.degToRad(lonRange[1]);
+            
+            // 创建扇形环状结构
+            const risePoints = [];
+            const riseHeight = baseRadius + heightOffset * 0.9;
+            
+            // 上升气流（垂直部分）
+            for (let h = 0; h <= 1; h += 0.1) {
+                risePoints.push(
+                    new THREE.Vector3().setFromSphericalCoords(
+                        baseRadius + heightOffset * 0.9 * h,
+                        THREE.MathUtils.degToRad(90 - lat),
+                        startLon
+                    )
+                );
+            }
+            
+            // 上部水平流动部分
+            for (let t = 0; t <= 1; t += 0.05) {
+                risePoints.push(
+                    new THREE.Vector3().setFromSphericalCoords(
+                        riseHeight,
+                        THREE.MathUtils.degToRad(90 - lat),
+                        startLon + (endLon - startLon) * t
+                    )
+                );
+            }
+            
+            // 下沉气流（垂直部分）
+            for (let h = 1; h >= 0; h -= 0.1) {
+                risePoints.push(
+                    new THREE.Vector3().setFromSphericalCoords(
+                        baseRadius + heightOffset * 0.9 * h,
+                        THREE.MathUtils.degToRad(90 - lat),
+                        endLon
+                    )
+                );
+            }
+            
+            // 下部水平流动部分（返回）- 修改这部分以形成更好的扇形环
+            for (let t = 0; t <= 1; t += 0.05) {
+                risePoints.push(
+                    new THREE.Vector3().setFromSphericalCoords(
+                        baseRadius,
+                        THREE.MathUtils.degToRad(90 - lat),
+                        endLon - (endLon - startLon) * t
+                    )
+                );
+            }
+            
+            // 创建平滑曲线
+            const walkercurve = new THREE.CatmullRomCurve3(risePoints, true); // 改为true，确保闭合
+            
+            // 创建管道几何体
+            const tubeGeometry = new THREE.TubeGeometry(walkercurve, 128, 0.1, 8, false);
+            const tubeMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.6,
+                depthWrite: false
+            });
+            
+            // 创建流动粒子
+            const particles = new THREE.BufferGeometry();
+            const positions = new Float32Array(30 * 3); // 减少到30个粒子
+            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            // 创建粒子材质 - 修复重复定义问题
+            const particleSystem = new THREE.Points(
+                particles,
+                new THREE.PointsMaterial({ 
+                    color: color, 
+                    size: 0.1,
+                    transparent: true,
+                    opacity: 0.9
+                    // 移除了不支持的 emissive 和 emissiveIntensity 属性
+                })
+            );
+            
+            // 删除重复定义的particleSystem
+            
+            // 删除未定义变量引用的代码块
+            
+            group.add(new THREE.Mesh(tubeGeometry, tubeMaterial));
+            group.add(particleSystem);
+            
+            return { group, curve: walkercurve };
+        };
+
+        // 添加沃克环流
+        const walkerCirculations = [
+             // 太平洋沃克环流
+            { lat: 0, lonRange: [160 + 205, 80 + 150], color: 0xFF8C00, speed: commonSpeed, type: 'walker', region: 'pacific' },
+            // 大西洋沃克环流
+            { lat: 0, lonRange: [-30 + 125, -80 +125], color: 0xFF8C00, speed: commonSpeed, type: 'walker', region: 'atlantic' }
+        ].map(c => ({ ...c, ...createWalkerCirculation(c.lat, c.lonRange, c.color, c.speed) }));
+        
+        // 将沃克环流添加到环流数组
+        circulations.push(...walkerCirculations);
+
+        // 将所有环流添加到场景，并默认隐藏
+        circulations.forEach(c => {
+            scene.add(c.group);
+            // 默认隐藏所有环流
+            c.group.visible = false;
+        });
+
+        // 创建环流控制按钮 - 修改按钮文本为"显示"
+        const hadleyToggle = createToggleButton('显示哈得来环流', controlPanel, '#FF4500');
+        const ferrellToggle = createToggleButton('显示费雷尔环流', controlPanel, '#32CD32');
+        const polarToggle = createToggleButton('显示极地环流', controlPanel, '#4169E1');
+        // 替换沃克环流按钮 - 添加const关键字修复未定义错误
+        const pacificWalkerToggle = createToggleButton('显示太平洋沃克环流', controlPanel, '#FF8C00');
+        const atlanticWalkerToggle = createToggleButton('显示大西洋沃克环流', controlPanel, '#FF8C00');
+        
+        // 添加动画控制按钮
+        // 添加动画控制按钮
+        const particleToggle = createToggleButton('暂停粒子动画', controlPanel, '#f39c12');
+        
+        // 添加复制三圈环流按钮
+        const copyCirculationsToggle = createToggleButton('显示行星风带', controlPanel, '#2ecc71');
+        
+        // 添加气压带和环流位置移动控制按钮
+        const circulationMoveToggle = createToggleButton('开启季节变化', controlPanel, '#9b59b6');
+        
+        // 动画状态
+        let isParticleAnimating = true;
+        let hasMultipleCirculations = false;
+        let isCirculationMoving = false;  // 控制环流位置移动的状态
+        let circulationMovePhase = 0;     // 环流移动的相位
+        
+        // 添加按钮事件监听器
+        hadleyToggle.addEventListener('click', () => {
+            const isVisible = toggleCirculationType('hadley');
+            hadleyToggle.textContent = isVisible ? '隐藏哈得来环流' : '显示哈得来环流';
+        });
+        
+        ferrellToggle.addEventListener('click', () => {
+            const isVisible = toggleCirculationType('ferrell');
+            ferrellToggle.textContent = isVisible ? '隐藏费雷尔环流' : '显示费雷尔环流';
+        });
+        
+        polarToggle.addEventListener('click', () => {
+            const isVisible = toggleCirculationType('polar');
+            polarToggle.textContent = isVisible ? '隐藏极地环流' : '显示极地环流';
+        });
+        
+        // 添加沃克环流按钮事件监听器
+        pacificWalkerToggle.addEventListener('click', () => {
+            const isVisible = toggleWalkerCirculation('pacific');
+            pacificWalkerToggle.textContent = isVisible ? '隐藏太平洋沃克环流' : '显示太平洋沃克环流';
+        });
+        
+        atlanticWalkerToggle.addEventListener('click', () => {
+            const isVisible = toggleWalkerCirculation('atlantic');
+            atlanticWalkerToggle.textContent = isVisible ? '隐藏大西洋沃克环流' : '显示大西洋沃克环流';
+        });
+        
+        // 将复制三圈环流按钮事件监听器移到这里，而不是放在animate函数内
+        copyCirculationsToggle.addEventListener('click', () => {
+            if (!hasMultipleCirculations) {
+                // 复制三圈环流到不同经度，每次偏转20°，共17遍
+                const angles = [];
+                for (let i = 1; i <= 35; i++) {
+                    angles.push(i * 10); // 从20°到340°，每次增加20°
+                }
+                
+                const newCirculations = [];
+                
+                angles.forEach(angle => {
+                    // 复制哈得来环流、费雷尔环流和极地环流
+                    circulations.filter(c => ['hadley', 'ferrell', 'polar'].includes(c.type)).forEach(circ => {
+                        // 创建新的组
+                        const newGroup = new THREE.Group();
+                        
+                        // 复制管道几何体
+                        circ.group.children.forEach((child, index) => {
+                            if (index < 2) { // 前两个子对象是管道几何体
+                                const clonedMesh = child.clone();
+                                newGroup.add(clonedMesh);
+                            } else if (index === 2) { // 第三个子对象是粒子系统
+                                // 创建新的粒子系统，确保粒子数量一致
+                                const originalParticles = child.geometry;
+                                const originalPositions = originalParticles.attributes.position.array;
+                                
+                                const newParticles = new THREE.BufferGeometry();
+                                const newPositions = new Float32Array(originalPositions.length);
+                                newParticles.setAttribute('position', new THREE.BufferAttribute(newPositions, 3));
+                                
+                                const newParticleSystem = new THREE.Points(
+                                    newParticles,
+                                    new THREE.PointsMaterial({ 
+                                        color: child.material.color, 
+                                        size: 0.15,  // 增加粒子大小
+                                        transparent: true,
+                                        opacity: 1.0  // 增加不透明度到最大
+                                    })
+                                );
+                                
+                                newGroup.add(newParticleSystem);
+                            }
+                        });
+                        
+                        // 设置旋转
+                        newGroup.rotation.y = THREE.MathUtils.degToRad(angle);
+                        
+                        const newCirc = { 
+                            ...circ, 
+                            group: newGroup,
+                            cloned: true,
+                            originalRotation: THREE.MathUtils.degToRad(angle),
+                            speed: circ.speed,
+                            type: circ.type
+                        };
+                        
+                        newCirculations.push(newCirc);
+                        scene.add(newGroup);
+                    });
+                });
+                
+                // 将新环流添加到环流数组
+                circulations.push(...newCirculations);
+                hasMultipleCirculations = true;
+                copyCirculationsToggle.textContent = '隐藏行星风带';
+            } else {
+                // 移除复制的环流
+                const clonedCirculations = circulations.filter(c => c.cloned);
+                clonedCirculations.forEach(circ => {
+                    scene.remove(circ.group);
+                });
+                
+                // 从数组中移除
+                circulations = circulations.filter(c => !c.cloned);
+                hasMultipleCirculations = false;
+                copyCirculationsToggle.textContent = '显示行星风带';
+            }
+        });
+        
+        particleToggle.addEventListener('click', () => {
+            isParticleAnimating = !isParticleAnimating;
+            particleToggle.textContent = isParticleAnimating ? '暂停粒子动画' : '继续粒子动画';
+        });
+        
+        // 添加环流位置移动控制按钮事件监听器
+        circulationMoveToggle.addEventListener('click', () => {
+            isCirculationMoving = !isCirculationMoving;
+            circulationMoveToggle.textContent = isCirculationMoving ? '关闭季节变化' : '开启季节变化';
+            
+            // 如果关闭移动，重置所有位置
+            if (!isCirculationMoving) {
+                pressureBands.forEach(band => {
+                    const centerLat = (band.originalMinLat + band.originalMaxLat) / 2;
+                    const centerPhi = THREE.MathUtils.degToRad(90 - centerLat);
+                    band.centerPos.setFromSphericalCoords(5.2, centerPhi, 0);
+                    
+                    // 重置气压带几何体
+                    scene.remove(band.mesh);
+                    const segments = 64;
+                    const phiStart = THREE.MathUtils.degToRad(90 - band.originalMaxLat);
+                    const phiLength = THREE.MathUtils.degToRad(band.originalMaxLat - band.originalMinLat);
+                    const thetaStart = 0;
+                    const thetaLength = 2 * Math.PI;
+                    
+                    const newGeometry = new THREE.SphereGeometry(
+                        5.1,
+                        segments,
+                        segments,
+                        thetaStart,
+                        thetaLength,
+                        phiStart,
+                        phiLength
+                    );
+                    
+                    band.mesh.geometry.dispose();
+                    band.mesh.geometry = newGeometry;
+                    scene.add(band.mesh);
+                });
+                
+                circulations.forEach(circ => {
+                    if (!circ.cloned && ['hadley', 'ferrell', 'polar'].includes(circ.type)) {
+                        circ.group.position.y = 0;
+                    }
+                });
+            }
+        });
+        
+        // 切换特定类型环流的可见性
+        function toggleCirculationType(type) {
+            const targetCirculations = circulations.filter(c => c.type === type);
+            if (targetCirculations.length === 0) return false;
+            
+            const currentVisibility = targetCirculations[0].group.visible;
+            const newVisibility = !currentVisibility;
+            
+            targetCirculations.forEach(c => {
+                c.group.visible = newVisibility;
+            });
+            
+            return newVisibility;
+        }
+        
+        // 添加新函数：切换特定区域沃克环流的可见性
+        function toggleWalkerCirculation(region) {
+            const targetCirculations = circulations.filter(c => c.type === 'walker' && c.region === region);
+            if (targetCirculations.length === 0) return false;
+            
+            const currentVisibility = targetCirculations[0].group.visible;
+            const newVisibility = !currentVisibility;
+            
+            targetCirculations.forEach(c => {
+                c.group.visible = newVisibility;
+            });
+            
+            return newVisibility;
+        }
+
+        // 动画循环
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            // 处理环流位置移动
+            if (isCirculationMoving) {
+                circulationMovePhase += 0.01;  // 控制移动速度，从0.005增加到0.01
+                const latOffset = Math.sin(circulationMovePhase) * 5;  // 在±5°范围内移动
+                
+                // 更新气压带位置
+                pressureBands.forEach(band => {
+                    if (band.mesh.visible) {
+                        // 更新中心位置
+                        const centerLat = (band.originalMinLat + band.originalMaxLat) / 2 + latOffset;
+                        const centerPhi = THREE.MathUtils.degToRad(90 - centerLat);
+                        band.centerPos.setFromSphericalCoords(5.2, centerPhi, 0);
+                        
+                        // 更新气压带几何体
+                        scene.remove(band.mesh);
+                        const minLat = band.originalMinLat + latOffset;
+                        const maxLat = band.originalMaxLat + latOffset;
+                        const segments = 64;
+                        const phiStart = THREE.MathUtils.degToRad(90 - maxLat);
+                        const phiLength = THREE.MathUtils.degToRad(maxLat - minLat);
+                        const thetaStart = 0;
+                        const thetaLength = 2 * Math.PI;
+                        
+                        const newGeometry = new THREE.SphereGeometry(
+                            5.1,
+                            segments,
+                            segments,
+                            thetaStart,
+                            thetaLength,
+                            phiStart,
+                            phiLength
+                        );
+                        
+                        band.mesh.geometry.dispose();
+                        band.mesh.geometry = newGeometry;
+                        scene.add(band.mesh);
+                    }
+                });
+                
+                // 更新环流位置 - 使用相同的偏移量计算方式确保同步
+                circulations.forEach(circ => {
+                    if (circ.group.visible && !circ.cloned && ['hadley', 'ferrell', 'polar'].includes(circ.type)) {
+                        // 应用纬度偏移 - 调整系数使环流移动与气压带同步
+                        circ.group.position.y = latOffset * 0.1;  // 保持缩放系数不变
+                    }
+                });
+            }
+            
+            // 更新气压带标签位置
+            pressureBands.forEach(band => {
+                if (band.mesh.visible) {
+                    // 计算当前视角下的位置
+                    const vector = band.centerPos.clone();
+                    // 应用当前的旋转
+                    vector.applyEuler(earth.rotation);
+                    
+                    // 更新标记点位置
+                    band.marker.position.copy(vector);
+                    
+                    // 将3D位置转换为屏幕坐标
+                    vector.project(camera);
+                    
+                    // 转换为CSS坐标
+                    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                    
+                    // 检查是否在视野内（在地球背面的标签不显示）
+                    if (vector.z < 0) {
+                        band.label.style.display = 'none';
+                        band.marker.visible = false;
+                    } else {
+                        band.label.style.display = labelsVisible ? 'block' : 'none';
+                        band.marker.visible = labelsVisible;
+                        // 更新标签位置
+                        band.label.style.left = x + 'px';
+                        band.label.style.top = y + 'px';
+                        band.label.style.transform = 'translate(-50%, -50%)';
+                    }
+                } else {
+                    band.label.style.display = 'none';
+                    band.marker.visible = false;
+                }
+            });
+            
+            // 处理所有环流
+            circulations.forEach(circ => {
+                // 粒子动画
+                if (isParticleAnimating) {
+                    // 为不同类型的环流使用不同的时间增量
+                    const timeIncrement = circ.type === 'walker' ? 0.000165 : 0.00067; // 沃克环流速度再减半
+                    
+                    // 对于复制的环流，使用相同的时间基准，而不是累加time
+                    // 这样可以确保所有环流的粒子动画速度一致
+                    if (!circ.cloned) {
+                        time += timeIncrement;
+                    }
+                    
+                    // 检查环流类型并相应地访问粒子系统
+                    const particleIndex = circ.type === 'walker' ? 1 : 2; // Walker环流粒子在索引1，其他在索引2
+                    
+                    if (circ.group.children[particleIndex]) {
+                        const positions = circ.group.children[particleIndex].geometry.attributes.position.array;
+                        
+                        // 使用环流特定的时间偏移，确保复制的环流与原始环流保持一致的动画速度
+                        const baseTime = circ.cloned ? (time - timeIncrement) : time;
+                        
+                        for(let i = 0; i < positions.length; i += 3) {
+                            const t = (baseTime % 1) + i/positions.length;
+                            // 沃克环流粒子方向相反
+                            const adjustedT = circ.type === 'walker' ? (1 - (t % 1)) : (t % 1);
+                            const point = circ.curve.getPoint(adjustedT);
+                            // 添加高度限制确保不穿透地球
+                            const minHeight = 5;
+                            const finalPos = point.clone().multiplyScalar(Math.max(point.length(), minHeight)/point.length());
+                            positions[i] = finalPos.x;
+                            positions[i+1] = finalPos.y;
+                            positions[i+2] = finalPos.z;
+                        }
+                        circ.group.children[particleIndex].geometry.attributes.position.needsUpdate = true;
+                    }
+                }
+                
+                // 删除这里的复制三圈环流按钮事件监听器代码
+                // 因为它已经移到了上面的正确位置
+                
+                // 取消所有环流的旋转，包括三圈环流
+                // 移除了环流旋转的代码
+            });
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // 窗口大小调整处理
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

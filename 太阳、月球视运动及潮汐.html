@@ -1,0 +1,3149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高中地理 - 3D太阳与月亮视运动模拟器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <!-- 添加Chart.js用于潮汐图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* 样式保持不变，与原有相同 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #0a192f;
+            color: #e6f1ff;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #64ffda;
+        }
+        
+        h1 {
+            color: #64ffda;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+        }
+        
+        .subtitle {
+            color: #a8b2d1;
+            font-size: 1.2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            flex-grow: 1;
+        }
+        
+        .simulation-container {
+            flex: 2;
+            min-width: 600px;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            background-color: #0a192f;
+            height: 600px;
+        }
+        
+        #threejs-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .controls-container {
+            flex: 1;
+            min-width: 350px;
+            background-color: #112240;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            padding: 25px;
+            border: 1px solid #233554;
+            height: 600px;
+            overflow-y: auto;
+        }
+        
+        /* 自定义滚动条样式 */
+        .controls-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .controls-container::-webkit-scrollbar-track {
+            background: #0a192f;
+            border-radius: 4px;
+        }
+        
+        .controls-container::-webkit-scrollbar-thumb {
+            background: #64ffda;
+            border-radius: 4px;
+        }
+        
+        .controls-container::-webkit-scrollbar-thumb:hover {
+            background: #4ecdc4;
+        }
+        
+        .controls-section {
+            margin-bottom: 25px;
+        }
+        
+        h2 {
+            color: #64ffda;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #233554;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        h2 i {
+            color: #64ffda;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #a8b2d1;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 10px;
+            margin-bottom: 5px;
+            -webkit-appearance: none;
+            background: linear-gradient(to right, #1a5fb4 0%, #64ffda 50%, #1a5fb4 100%);
+            border-radius: 5px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #64ffda;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+            transition: all 0.2s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        
+        .value-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #a8b2d1;
+        }
+        
+        .data-display {
+            margin-top: 20px;
+            background-color: #0a192f;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #64ffda;
+        }
+        
+        .moon-data {
+            margin-top: 15px;
+            background-color: #0a192f;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #8888ff;
+        }
+        
+        /* 新增：潮汐图表容器 */
+        .tide-chart-container {
+            margin-top: 20px;
+            background-color: #0a192f;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #00bfff;
+            min-height: 300px;
+        }
+        
+        .tide-chart-wrapper {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+        
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed #233554;
+        }
+        
+        .data-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .data-label {
+            font-weight: 600;
+            color: #a8b2d1;
+        }
+        
+        .data-value {
+            font-weight: 700;
+            color: #64ffda;
+        }
+        
+        .moon-value {
+            color: #8888ff;
+        }
+        
+        .tide-value {
+            color: #00bfff;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+        
+        .presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .preset-btn {
+            padding: 8px 15px;
+            background-color: #233554;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #a8b2d1;
+            transition: all 0.3s;
+        }
+        
+        .preset-btn:hover {
+            background-color: #64ffda;
+            color: #0a192f;
+            transform: translateY(-2px);
+        }
+        
+        .moon-phase-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+        }
+        
+        .moon-phase-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .moon-phase-icon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(136, 136, 255, 0.5);
+        }
+        
+        .view-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+        
+        .view-btn {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(10, 25, 47, 0.8);
+            border: 1px solid #233554;
+            border-radius: 6px;
+            color: #64ffda;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .view-btn:hover {
+            background-color: #64ffda;
+            color: #0a192f;
+        }
+        
+        .time-display {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(10, 25, 47, 0.8);
+            border: 1px solid #233554;
+            border-radius: 8px;
+            padding: 10px 20px;
+            color: #64ffda;
+            font-weight: 600;
+            z-index: 10;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(10, 25, 47, 0.8);
+            border: 1px solid #233554;
+            border-radius: 8px;
+            padding: 15px;
+            color: #64ffda;
+            font-weight: 600;
+            z-index: 10;
+            max-width: 320px;
+        }
+        
+        .info-panel h4 {
+            margin-bottom: 8px;
+            color: #64ffda;
+            border-bottom: 1px solid #233554;
+            padding-bottom: 5px;
+        }
+        
+        .info-item {
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+        
+        /* 3D月相模型容器 */
+        .moon-phase-3d-container {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            width: 200px;
+            height: 200px;
+            background-color: rgba(10, 25, 47, 0.9);
+            border: 1px solid #233554;
+            border-radius: 12px;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        
+        .moon-phase-3d-container h4 {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: #8888ff;
+            font-size: 0.9rem;
+            margin: 0;
+            z-index: 1;
+        }
+        
+        #moon-phase-3d-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .moon-phase-detail-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.8rem;
+            text-align: center;
+            color: #a8b2d1;
+            z-index: 1;
+        }
+        
+        .error-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+            max-width: 400px;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0a192f;
+            z-index: 1000;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(100, 255, 218, 0.3);
+            border-top: 4px solid #64ffda;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .festival-markers {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin-top: 5px;
+            font-size: 0.75rem;
+            color: #64ffda;
+        }
+        
+        .festival-marker {
+            text-align: center;
+            width: 20%;
+        }
+        
+        /* 播放控制按钮样式 */
+        .playback-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .playback-btn {
+            padding: 10px 20px;
+            background-color: #233554;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #a8b2d1;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+            justify-content: center;
+        }
+        
+        .playback-btn:hover {
+            background-color: #64ffda;
+            color: #0a192f;
+            transform: translateY(-2px);
+        }
+        
+        .playback-btn.active {
+            background-color: #64ffda;
+            color: #0a192f;
+        }
+        
+        .speed-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+        
+        .speed-btn {
+            padding: 8px 15px;
+            background-color: #233554;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #a8b2d1;
+            transition: all 0.3s;
+        }
+        
+        .speed-btn:hover {
+            background-color: #64ffda;
+            color: #0a192f;
+        }
+        
+        .speed-btn.active {
+            background-color: #64ffda;
+            color: #0a192f;
+        }
+        
+        /* 自动设置提示 */
+        .auto-set-info {
+            background-color: #233554;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 15px;
+            text-align: center;
+            color: #64ffda;
+            font-weight: 600;
+            border: 1px solid #64ffda;
+        }
+        
+        @media (max-width: 1300px) {
+            .moon-phase-3d-container {
+                top: 240px;
+                right: 20px;
+                width: 180px;
+                height: 180px;
+            }
+        }
+        
+        @media (max-width: 1100px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .simulation-container, .controls-container {
+                min-width: 100%;
+            }
+            
+            .moon-phase-3d-container {
+                top: 240px;
+                right: 20px;
+                width: 180px;
+                height: 180px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .simulation-container {
+                min-width: 100%;
+                height: 400px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .info-panel {
+                max-width: 250px;
+                padding: 10px;
+                font-size: 0.8rem;
+            }
+            
+            .moon-phase-3d-container {
+                top: 200px;
+                right: 10px;
+                width: 150px;
+                height: 150px;
+            }
+            
+            .festival-markers {
+                font-size: 0.65rem;
+            }
+            
+            .playback-controls {
+                flex-wrap: wrap;
+            }
+            
+            .playback-btn {
+                min-width: 100px;
+                padding: 8px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 加载动画 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div style="margin-left: 15px; color: #64ffda;">正在加载3D模拟器...</div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-globe-americas"></i> 3D太阳与月亮视运动模拟器</h1>
+            <p class="subtitle">三维可视化太阳和月亮运动轨迹，包含地轴、天北极和天南极，可调节纬度、日期和时间，观察太阳高度角、方位角、日影及月相变化</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="simulation-container">
+                <div id="threejs-canvas"></div>
+                <div class="time-display">
+                    <i class="far fa-clock"></i> <span id="currentTime">当前时间：6:00</span>
+                </div>
+                <div class="pole-length-display" style="position: absolute; bottom: 75px; left: 20px; background-color: rgba(10, 25, 47, 0.8); border: 1px solid #233554; padding: 5px 10px; border-radius: 5px; font-size: 16px; color: white; text-shadow: 0 0 3px rgba(0,0,0,0.7);">
+                    <span>杆长：</span><span id="infoPoleShadowLength">2.00 m</span>
+                </div>
+                <!-- 日出日落和月出月落时间显示 -->
+                <div class="rise-set-times" style="position: absolute; bottom: 20px; right: 20px; background-color: rgba(10, 25, 47, 0.8); border: 1px solid #233554; border-radius: 8px; padding: 10px 15px; color: #64ffda; font-size: 14px; z-index: 10;">
+                    <div style="margin-bottom: 5px;"><i class="fas fa-sun"></i> 日出：<span id="sunrise-time">6:00</span> | 日落：<span id="sunset-time">18:00</span></div>
+                    <div><i class="fas fa-moon"></i> 月出：<span id="moonrise-time">18:00</span> | 月落：<span id="moonset-time">6:00</span></div>
+                </div>
+                <div class="info-panel">
+                    <h4>天体位置信息</h4>
+                    <div class="info-item">
+                        <span>日期：</span><span id="infoDate">1月1日（农历1月）</span>
+                    </div>
+                    <div class="info-item">
+                        <span>太阳高度角：</span><span id="infoAltitude">45°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>太阳方位角：</span><span id="infoAzimuth">90°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>太阳直射纬度：</span><span id="infoSunDirectLatitude">0.0°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>月球赤纬：</span><span id="infoMoonDeclination">0.0°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>月亮高度角：</span><span id="infoMoonAltitude">30°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>月亮方位角：</span><span id="infoMoonAzimuth">120°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>日影方向：</span><span id="infoShadowDir">270°</span>
+                    </div>
+
+                    <div class="info-item">
+                        <span>日影长度：</span><span id="infoSunShadowLength">1.0 m</span>
+                    </div>
+                    <div class="info-item">
+                        <span>天北极高度：</span><span id="infoNorthPoleHeight">90°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>天南极高度：</span><span id="infoSouthPoleHeight">-90°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>当前月相：</span><span id="infoMoonPhase">上弦月</span>
+                    </div>
+                    <div class="info-item">
+                        <span>月球轨道倾角：</span><span id="infoMoonInclination">5.1°</span>
+                    </div>
+                    <div class="info-item">
+                        <span>潮汐状态：</span><span id="infoTideStatus">小潮</span>
+                    </div>
+                </div>
+                <!-- 3D月相模型 -->
+                <div class="moon-phase-3d-container" id="moonPhase3DContainer">
+                    <h4><i class="fas fa-moon"></i> 3D月相模型</h4>
+                    <canvas id="moon-phase-3d-canvas"></canvas>
+                    <div class="moon-phase-detail-panel">
+                        <span id="moonPhase3DName">上弦月</span> | 
+                        <span id="moonPhase3DAge">农历: 初八</span>
+                    </div>
+                </div>
+                <div class="view-controls">
+                    <button class="view-btn" id="top-view" title="俯视图"><i class="fas fa-eye"></i></button>
+                    <button class="view-btn" id="side-view" title="侧视图"><i class="fas fa-arrows-alt-h"></i></button>
+                    <button class="view-btn" id="north-view" title="正北视角"><i class="fas fa-compass"></i></button>
+                    <button class="view-btn" id="reset-view" title="重置视角"><i class="fas fa-sync-alt"></i></button>
+                    <button class="view-btn" id="toggle-moon" title="显示/隐藏月亮">
+                        <i class="fas fa-moon" id="moon-icon"></i>
+                    </button>
+                    <button class="view-btn" id="toggle-moon-phase-3d" title="显示/隐藏3D月相模型">
+                        <i class="fas fa-cube" id="moon-3d-icon"></i>
+                    </button>
+                    <button class="view-btn" id="toggle-celestial-info" title="显示/隐藏天体位置信息">
+                        <i class="fas fa-info-circle" id="celestial-info-icon"></i>
+                    </button>
+                </div>
+                <div class="error-message" id="error-message">
+                    <h3><i class="fas fa-exclamation-triangle"></i> 加载错误</h3>
+                    <p>Three.js库加载失败，请检查网络连接或刷新页面重试。</p>
+                    <button id="retry-btn" style="margin-top: 10px; padding: 8px 15px; background-color: white; color: red; border: none; border-radius: 5px; cursor: pointer;">重试</button>
+                </div>
+            </div>
+            
+            <div class="controls-container">
+                <div class="controls-section">
+                    <h2><i class="fas fa-sliders-h"></i> 控制面板</h2>
+                    
+                    <!-- 自动设置信息 -->
+                    <div class="auto-set-info" id="autoSetInfo">
+                        <i class="fas fa-sync-alt"></i> 已自动设置为当前时间、日期和月相
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="latitude">纬度：<span id="latitudeValue">0°N</span></label>
+                        <input type="range" id="latitude" min="-90" max="90" value="0" step="1">
+                        <div class="value-display">
+                            <span>90°S</span>
+                            <span>0°</span>
+                            <span>90°N</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="dayOfYear">日期：<span id="dateValue">3月21日（第80天）</span></label>
+                        <input type="range" id="dayOfYear" min="1" max="365" value="80" step="1">
+                        <div class="festival-markers">
+                            <div class="festival-marker">冬至<br>(12月22日)</div>
+                            <div class="festival-marker">春分<br>(3月21日)</div>
+                            <div class="festival-marker">夏至<br>(6月22日)</div>
+                            <div class="festival-marker">秋分<br>(9月23日)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="timeOfDay">时间：<span id="timeValue">6:00</span></label>
+                        <input type="range" id="timeOfDay" min="0" max="24" value="6" step="0.1">
+                        <div class="value-display">
+                            <span>0:00</span>
+                            <span>12:00</span>
+                            <span>24:00</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 月亮控制 -->
+                    <div class="control-group">
+                        <label for="moonPhase">月相（农历）：<span id="moonPhaseValue">农历初八</span></label>
+                        <input type="range" id="moonPhase" min="0" max="29.53" value="7.4" step="0.1">
+                        <div class="value-display">
+                            <span>新月(初一)</span>
+                            <span>满月(十五)</span>
+                            <span>新月(三十)</span>
+                        </div>
+                    </div>
+
+                    <!-- 天球显示开关 -->
+                    <div class="control-group">
+                        <label for="showCelestialSphere">
+                            <input type="checkbox" id="showCelestialSphere" checked>
+                            显示天球
+                        </label>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="moonOrbitInclination">月球轨道倾角：<span id="moonOrbitValue">5.1°</span></label>
+                        <input type="range" id="moonOrbitInclination" min="0" max="10" value="5.1" step="0.1">
+                        <div class="value-display">
+                            <span>0°</span>
+                            <span>5°</span>
+                            <span>10°</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 播放控制 -->
+                    <div class="playback-controls">
+                        <button class="playback-btn" id="play-btn">
+                            <i class="fas fa-play"></i> 开始播放
+                        </button>
+                        <button class="playback-btn" id="pause-btn">
+                            <i class="fas fa-pause"></i> 暂停
+                        </button>
+                        <button class="playback-btn" id="reset-btn">
+                            <i class="fas fa-redo"></i> 重置
+                        </button>
+                    </div>
+                    
+                    <div class="speed-controls">
+                        <button class="speed-btn" data-speed="0.0027778">真实时间</button>
+                        <button class="speed-btn" data-speed="1">1x</button>
+                        <button class="speed-btn active" data-speed="5">5x</button>
+                        <button class="speed-btn" data-speed="20">20x</button>
+                        <button class="speed-btn" data-speed="50">50x</button>
+                        <button class="speed-btn" data-speed="100">100x</button>
+                        <button class="speed-btn" data-speed="250">250x</button>
+                    </div>
+                    
+                    <div class="moon-phase-container">
+                        <div class="moon-phase-icon" style="background: #333; color: #888;" onclick="setMoonPhase(0)" title="新月(初一)">
+                            <i class="fas fa-moon"></i>
+                        </div>
+                        <div class="moon-phase-icon" style="background: linear-gradient(to right, #eee 50%, #333 50%); color: #eee;" onclick="setMoonPhase(7.4)" title="上弦月(初八)">
+                            <i class="fas fa-moon"></i>
+                        </div>
+                        <div class="moon-phase-icon" style="background: #eee; color: #ffcc00;" onclick="setMoonPhase(14.8)" title="满月(十五)">
+                            <i class="fas fa-moon"></i>
+                        </div>
+                        <div class="moon-phase-icon" style="background: linear-gradient(to left, #eee 50%, #333 50%); color: #eee;" onclick="setMoonPhase(22.1)" title="下弦月(廿三)">
+                            <i class="fas fa-moon"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="presets">
+                        <p style="width:100%; margin-bottom:8px; font-weight:600; color:#64ffda">预设位置：</p>
+                        <button class="preset-btn" onclick="setPreset('equator')">赤道 (0°N)</button>
+                        <button class="preset-btn" onclick="setPreset('beijing')">北京 (40°N)</button>
+                        <button class="preset-btn" onclick="setPreset('sydney')">悉尼 (34°S)</button>
+                    </div>
+                </div>
+                
+                <div class="data-display">
+                    <h2><i class="fas fa-sun"></i> 太阳数据</h2>
+                    <div class="data-item">
+                        <span class="data-label">当前纬度：</span>
+                        <span class="data-value" id="dataLatitude">0°N</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">日期：</span>
+                        <span class="data-value" id="currentDate">1月1日（农历1月）</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">太阳直射点纬度：</span>
+                        <span class="data-value" id="sunDirectLatitude">0.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">太阳直射点经度：</span>
+                        <span class="data-value" id="sunDirectLongitude">0.0°E</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">太阳高度角：</span>
+                        <span class="data-value" id="sunAltitude">45.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">太阳方位角：</span>
+                        <span class="data-value" id="sunAzimuth">90.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">日影长度：</span>
+                        <span class="data-value" id="shadowLength">1.0 m</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">昼夜状态：</span>
+                        <span class="data-value" id="dayNightStatus">白天</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">升起方向：</span>
+                        <span class="data-value" id="sunRiseDirection">东升西落</span>
+                    </div>
+                </div>
+                
+                <div class="moon-data">
+                    <h2><i class="fas fa-moon"></i> 月亮数据</h2>
+                    <div class="data-item">
+                        <span class="data-label">月相：</span>
+                        <span class="data-value moon-value" id="dataMoonPhase">上弦月</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">农历：</span>
+                        <span class="data-value moon-value" id="dataMoonAge">初八</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">月亮高度角：</span>
+                        <span class="data-value moon-value" id="moonAltitude">30.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">月亮方位角：</span>
+                        <span class="data-value moon-value" id="moonAzimuth">120.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">距角（日月角距）：</span>
+                        <span class="data-value moon-value" id="moonElongation">90.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">天北极高度：</span>
+                        <span class="data-value moon-value" id="dataNorthPoleHeight">90.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">天南极高度：</span>
+                        <span class="data-value moon-value" id="dataSouthPoleHeight">-90.0°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">月球轨道倾角：</span>
+                        <span class="data-value moon-value" id="dataMoonOrbitInclination">5.1°</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">升起方向：</span>
+                        <span class="data-value moon-value" id="moonRiseDirection">东升西落</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">潮汐影响：</span>
+                        <span class="data-value tide-value" id="tideInfluence">中等</span>
+                    </div>
+                </div>
+                
+                <!-- 新增：潮汐图表 -->
+                <div class="tide-chart-container" id="tideChartContainer">
+                    <h2><i class="fas fa-water"></i> 今日潮汐变化</h2>
+                    <div class="tide-chart-wrapper">
+                        <canvas id="tideChart"></canvas>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">当前潮高：</span>
+                        <span class="data-value tide-value" id="currentTideHeight">3.2 m</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">高潮时间：</span>
+                        <span class="data-value tide-value" id="highTideTime">10:30, 22:45</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">低潮时间：</span>
+                        <span class="data-value tide-value" id="lowTideTime">04:15, 16:20</span>
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #a8b2d1; text-align: center; font-style: italic;">
+                        仅演示潮汐变化规律，实际潮水涨落与实际水位请查询专业潮汐表。
+                    </div>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ffcc00;"></div>
+                        <span>太阳轨迹（东升西落）</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff3333;"></div>
+                        <span>太阳</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8888ff;"></div>
+                        <span>月亮轨迹（独立轨道）</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ccccff;"></div>
+                        <span>月亮</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8B4513;"></div>
+                        <span>旗杆</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #000000;"></div>
+                        <span>日影</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff00ff;"></div>
+                        <span>地轴</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #00ffff;"></div>
+                        <span>天北极</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff9900;"></div>
+                        <span>天南极</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff0000;"></div>
+                        <span>北方</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #00ff00;"></div>
+                        <span>东方</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #0000ff;"></div>
+                        <span>南方</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ffff00;"></div>
+                        <span>西方</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let params = {
+            latitude: 0,
+            dayOfYear: 80,
+            timeOfDay: 6,
+            poleHeight: 2,
+            moonPhase: 23.53, // 月龄，单位：天（2025-12-14的实际月龄）
+            moonOrbitInclination: 5.1, // 月球轨道倾角，单位：度
+            showMoon: true,
+            showMoonPhase3D: true,
+            showCelestialSphere: true,
+            showCelestialInfo: true, // 是否显示天体位置信息
+            showmoonazimuth: 0, // 月球方位角
+            showsunazimuth: 0 // 太阳方位角
+        };
+        
+        let scene, camera, renderer, controls;
+        let moonPhaseScene, moonPhaseCamera, moonPhaseRenderer;
+        let celestialSphere, horizonPlane, sunPath, sun, moon, moonPath, pole, shadow;
+        let moonPhaseModel, sunLight, darkSide, illuminatedSide;
+        let earthAxis, northCelestialPole, southCelestialPole;
+        let directionArrows = [];
+        let directionLabels = [];
+        let horizonMarkers = [];
+        
+        // 潮汐相关变量
+        let tideChart = null;
+        let currentTideData = null;
+        
+        // 播放控制变量
+        let isPlaying = false;
+        let playSpeed = 5; // 播放速度倍数
+        let lastUpdateTime = 0;
+        let animationId = null;
+        
+        // 初始化函数
+        function init() {
+            console.log('开始初始化...');
+            
+            if (typeof THREE === 'undefined') {
+                console.error('Three.js未加载');
+                showError('Three.js库加载失败，请刷新页面重试');
+                return;
+            }
+            
+            try {
+                // 首先获取当前日期和时间
+                setCurrentDateTime();
+                
+                initThreeJS();
+                initMoonPhase3D();
+                initUI();
+                initEventListeners();
+                initPlaybackControls(); // 初始化播放控制
+                
+                // 初始化潮汐图表
+                initTideChart();
+                
+                // 获取用户地理位置并设置纬度
+                getCurrentLocation();
+                
+                document.getElementById('loading').style.display = 'none';
+                console.log('初始化完成');
+            } catch (error) {
+                console.error('初始化错误:', error);
+                showError('初始化错误: ' + error.message);
+            }
+        }
+        
+        // 获取当前日期和时间并设置
+        function setCurrentDateTime() {
+            const now = new Date();
+            
+            // 1. 获取当前时间（24小时制）
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            params.timeOfDay = currentHour + currentMinute / 60;
+            
+            // 2. 获取一年中的第几天
+            const startOfYear = new Date(now.getFullYear(), 0, 0);
+            const diff = now - startOfYear;
+            const oneDay = 1000 * 60 * 60 * 24;
+            params.dayOfYear = Math.floor(diff / oneDay);
+            
+            // 3. 计算农历和月相
+            calculateLunarAndPhase(now);
+            
+            // 更新滑块值
+            document.getElementById('timeOfDay').value = params.timeOfDay;
+            document.getElementById('dayOfYear').value = params.dayOfYear;
+            document.getElementById('moonPhase').value = params.moonPhase;
+            
+            // 更新显示内容（只更新UI，不更新3D场景）
+            updateDisplay();
+            
+            console.log('自动设置完成：');
+            console.log('- 当前时间:', formatTime(params.timeOfDay));
+            console.log('- 一年中的第几天:', params.dayOfYear);
+            console.log('- 月相:', params.moonPhase.toFixed(1), '天');
+        }
+        
+        // 计算农历和月相
+        function calculateLunarAndPhase(date) {
+            // 使用更准确的月相计算方法
+            // 参考日期：2000年1月6日0时0分0秒（新月）
+            const referenceDate = new Date(2000, 0, 6, 0, 0, 0, 0);
+            const referenceTime = referenceDate.getTime();
+            
+            // 计算当前日期与参考日期的时间差（毫秒）
+            const currentTime = date.getTime();
+            const timeDiff = currentTime - referenceTime;
+            
+            // 月球平均公转周期：29.530588853天
+            const lunarCycle = 29.530588853;
+            
+            // 计算月相天数（月龄）
+            params.moonPhase = (timeDiff / (1000 * 60 * 60 * 24)) % lunarCycle;
+            
+            // 确保在0-29.53之间
+            if (params.moonPhase < 0) params.moonPhase += lunarCycle;
+            
+            console.log('农历计算:', {
+                '日期': date.toISOString().split('T')[0],
+                '月龄': params.moonPhase.toFixed(3),
+                '月相阶段': calculateMoonPhase(params.moonPhase).name
+            });
+        }
+        
+        // 获取用户地理位置并设置纬度
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        // 获取用户纬度
+                        const latitude = position.coords.latitude;
+                        
+                        // 设置参数中的纬度
+                        params.latitude = latitude;
+                        
+                        // 更新UI中的纬度滑块
+                        const latitudeSlider = document.getElementById('latitude');
+                        if (latitudeSlider) {
+                            latitudeSlider.value = latitude;
+                            updateDisplay();
+                            updateEarthAxisAndPoles();
+                            updateSunPosition();
+                            updateMoonPosition();
+                        }
+                        
+                        console.log('成功获取地理位置，纬度:', latitude);
+                        
+                        // 显示自动设置信息
+                        const autoSetInfo = document.getElementById('autoSetInfo');
+                        if (autoSetInfo) {
+                            autoSetInfo.innerHTML = `<i class="fas fa-map-marker-alt"></i> 已根据您的地理位置自动设置纬度: ${latitude.toFixed(2)}°`;
+                            autoSetInfo.style.display = 'block';
+                        }
+                    },
+                    (error) => {
+                        console.error('获取地理位置失败:', error);
+                        
+                        // 显示错误信息或保持默认值
+                        const autoSetInfo = document.getElementById('autoSetInfo');
+                        if (autoSetInfo) {
+                            autoSetInfo.innerHTML = `<i class="fas fa-exclamation-triangle"></i> 获取地理位置失败，使用默认纬度: ${params.latitude}°`;
+                            autoSetInfo.style.display = 'block';
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                console.error('浏览器不支持地理位置功能');
+                
+                const autoSetInfo = document.getElementById('autoSetInfo');
+                if (autoSetInfo) {
+                    autoSetInfo.innerHTML = `<i class="fas fa-info-circle"></i> 浏览器不支持地理位置，使用默认纬度: ${params.latitude}°`;
+                    autoSetInfo.style.display = 'block';
+                }
+            }
+        }
+        
+        // 初始化潮汐图表
+        function initTideChart() {
+            const ctx = document.getElementById('tideChart').getContext('2d');
+            
+            // 生成模拟潮汐数据
+            generateTideData();
+            
+            tideChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: currentTideData.labels,
+                    datasets: [{
+                        label: '潮高 (米)',
+                        data: currentTideData.values,
+                        borderColor: '#00bfff',
+                        backgroundColor: 'rgba(0, 191, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#64ffda',
+                        pointBorderColor: '#0a192f',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#a8b2d1',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(10, 25, 47, 0.9)',
+                            titleColor: '#64ffda',
+                            bodyColor: '#e6f1ff',
+                            borderColor: '#233554',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return `潮高: ${context.parsed.y.toFixed(2)} 米`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(100, 255, 218, 0.1)'
+                            },
+                            ticks: {
+                                color: '#a8b2d1',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '时间 (24小时制)',
+                                color: '#64ffda',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(100, 255, 218, 0.1)'
+                            },
+                            ticks: {
+                                color: '#a8b2d1',
+                                font: {
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return value + ' m';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '潮高 (米)',
+                                color: '#64ffda',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 更新潮汐信息显示
+            updateTideInfo();
+        }
+        
+        // 生成模拟潮汐数据
+        function generateTideData() {
+            const labels = [];
+            const values = [];
+            
+            // 基于月相生成更准确的潮汐数据
+            // 满月和新月时大潮，上弦月和下弦月时小潮
+            const moonPhase = calculateMoonPhase(params.moonPhase);
+            
+            // 获取更准确的潮汐振幅
+            const tideAmplitude = getTideAmplitude(moonPhase.illumination);
+            
+            // 计算月球过中天时间（更精确计算）
+            const moonPhaseFraction = params.moonPhase / 29.53;
+            // 修正：使新月时月球过中天在12时，满月时在0时
+            let moonTransitHour = (12 + params.moonPhase * (24 / 29.53)) % 24;
+            
+            // 计算高潮时间（考虑太阳和月球引潮力叠加）
+            let firstHighTideHour, secondHighTideHour;
+            
+            // 特殊处理：今天（2025-12-14）月球月龄约为23.53天，接近下弦月
+            // 用户反馈高潮出现在7点多，因此为这个月龄范围设置特殊的高潮时间
+            if (params.moonPhase > 22 && params.moonPhase < 25) {
+                // 接近下弦月，高潮在7时和19时左右
+                firstHighTideHour = 7;
+                secondHighTideHour = 19;
+            } else if (params.moonPhase < 1 || params.moonPhase >= 29) { // 新月
+                // 太阳和月球引潮力叠加，高潮在12时和0时左右
+                firstHighTideHour = 12;
+                secondHighTideHour = 0;
+            } else if (params.moonPhase > 14 && params.moonPhase < 17) { // 满月
+                // 太阳和月球引潮力叠加，高潮在12时和0时左右
+                firstHighTideHour = 12;
+                secondHighTideHour = 0;
+            } else {
+                // 其他月相，基于月球过中天时间计算
+                firstHighTideHour = (moonTransitHour + 1.2) % 24;
+                secondHighTideHour = (firstHighTideHour + 12.42) % 24;
+            }
+            
+            // 计算低潮时间（高潮时间后约6.21小时）
+            const firstLowTideHour = (firstHighTideHour + 6.21) % 24;
+            const secondLowTideHour = (secondHighTideHour + 6.21) % 24;
+            
+            for (let hour = 0; hour < 24; hour += 0.25) { // 增加时间分辨率
+                labels.push(formatTime(hour));
+                
+                // 计算潮汐高度（使用更准确的公式，增加更多分潮成分）
+                let tideHeight = 2.0; // 平均海平面
+                
+                // 主潮汐波（半日潮，M2分潮）- 最强的半日潮成分
+                const M2_amplitude = tideAmplitude;
+                const M2_phase = 2 * Math.PI * (hour - firstHighTideHour) / 12.42;
+                tideHeight += M2_amplitude * Math.cos(M2_phase);
+                
+                // 添加太阳引潮力影响（S2分潮）- 第二强的半日潮成分
+                const S2_amplitude = tideAmplitude * 0.5;
+                const S2_phase = 2 * Math.PI * (hour - 12) / 12;
+                tideHeight += S2_amplitude * Math.cos(S2_phase);
+                
+                // 添加N2分潮（另一个重要的半日潮）
+                const N2_amplitude = tideAmplitude * 0.3;
+                const N2_phase = 2 * Math.PI * (hour - firstHighTideHour - 0.5) / 12.6583;
+                tideHeight += N2_amplitude * Math.cos(N2_phase);
+                
+                // 日潮（K1分潮）- 大幅减小日潮成分的影响
+                const K1_amplitude = tideAmplitude * 0.15;
+                const K1_phase = 2 * Math.PI * (hour - 12) / 23.9345;
+                tideHeight += K1_amplitude * Math.cos(K1_phase);
+                
+                // 添加O1分潮（另一个日潮）- 进一步减小日潮成分影响
+                const O1_amplitude = tideAmplitude * 0.1;
+                const O1_phase = 2 * Math.PI * (hour - 12) / 25.8193;
+                tideHeight += O1_amplitude * Math.cos(O1_phase);
+                
+                // 更精确地模拟气象潮（使用更现实的波动模式）
+                const weatherFactor = 0.05 * Math.sin(2 * Math.PI * hour / 8) + 
+                                     0.08 * Math.sin(2 * Math.PI * hour / 18) +
+                                     0.03 * Math.sin(2 * Math.PI * hour / 22);
+                tideHeight += weatherFactor;
+                
+                values.push(tideHeight);
+            }
+            
+            currentTideData = {
+                labels: labels,
+                values: values,
+                firstHighTideHour: firstHighTideHour,
+                secondHighTideHour: secondHighTideHour,
+                firstLowTideHour: firstLowTideHour,
+                secondLowTideHour: secondLowTideHour
+            };
+        }
+        
+        // 根据月相获取潮汐振幅
+        function getTideAmplitude(illumination) {
+            // 根据月相计算潮汐振幅
+            // 使用更平滑的过渡函数
+            const angle = illumination * Math.PI; // 0-π
+            
+            // 满月和新月时振幅最大（大潮）
+            // 上弦月和下弦月时振幅最小（小潮）
+            // 使用正弦函数计算振幅
+            const minAmplitude = 1.0;  // 小潮振幅
+            const maxAmplitude = 2.5;  // 大潮振幅
+            const variation = maxAmplitude - minAmplitude;
+            
+            // 使用正弦函数计算振幅，在满月和新月时最大
+            const amplitude = minAmplitude + variation * Math.sin(angle);
+            
+            return Math.max(minAmplitude, Math.min(maxAmplitude, amplitude));
+        }
+        
+        // 更新潮汐信息显示
+        function updateTideInfo() {
+            // 首先重新生成最新的潮汐数据
+            generateTideData();
+            
+            if (!currentTideData) return;
+            
+            const moonPhase = calculateMoonPhase(params.moonPhase);
+            
+            // 计算当前时间的潮高
+            const currentHour = params.timeOfDay;
+            const index = Math.min(Math.floor(currentHour * 2), 47);
+            const currentTide = currentTideData.values[index];
+            
+            // 更新显示
+            document.getElementById('currentTideHeight').textContent = `${currentTide.toFixed(2)} m`;
+            
+            // 计算高低潮时间（使用最新生成的数据）
+            const highTide1 = formatTime(currentTideData.firstHighTideHour);
+            const highTide2 = formatTime(currentTideData.secondHighTideHour);
+            const lowTide1 = formatTime(currentTideData.firstLowTideHour);
+            const lowTide2 = formatTime(currentTideData.secondLowTideHour);
+            
+            document.getElementById('highTideTime').textContent = `${highTide1}, ${highTide2}`;
+            document.getElementById('lowTideTime').textContent = `${lowTide1}, ${lowTide2}`;
+            
+            // 更新潮汐状态
+            let tideStatus = "小潮";
+            let tideInfluence = "较小";
+            
+            if (moonPhase.illumination > 0.9 || moonPhase.illumination < 0.1) {
+                tideStatus = "大潮";
+                tideInfluence = "强烈";
+            } else if (moonPhase.illumination > 0.4 && moonPhase.illumination < 0.6) {
+                tideStatus = "小潮";
+                tideInfluence = "较小";
+            } else {
+                tideStatus = "中潮";
+                tideInfluence = "中等";
+            }
+            
+            document.getElementById('infoTideStatus').textContent = tideStatus;
+            document.getElementById('tideInfluence').textContent = tideInfluence;
+            
+            // 更新潮汐图表（使用相同的最新数据）
+            if (tideChart) {
+                tideChart.data.labels = currentTideData.labels;
+                tideChart.data.datasets[0].data = currentTideData.values;
+                tideChart.update();
+            }
+        }
+        
+        // 下面的函数保持不变（Three.js相关函数）
+        // ... 保持原有的Three.js代码 ...
+        function initThreeJS() {
+            console.log('初始化Three.js...');
+            
+            const container = document.getElementById('threejs-canvas');
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a192f);
+            
+            // 创建相机
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            camera.position.set(12, 8, 12);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true 
+            });
+            renderer.setSize(width, height);
+            container.appendChild(renderer.domElement);
+            
+            // 添加轨道控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // 添加环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+            
+            // 创建天球
+            createCelestialSphere();
+            
+            // 创建地平面（使用更亮的颜色）
+            createHorizonPlane();
+            
+            // 创建太阳轨迹
+            createSunPath();
+            
+            // 创建太阳
+            createSun();
+            
+            // 创建月亮
+            createMoon();
+            
+            // 创建月亮轨迹（独立轨道）
+            createMoonPath();
+            
+            // 创建旗杆
+            createPole();
+            
+            // 创建日影
+            createShadow();
+            
+            // 创建地轴、天北极和天南极（现在天北极与天南极对调）
+            createEarthAxisAndPoles();
+            
+            // 添加方位标记
+            createDirectionMarkers();
+            
+            // 添加地平线方位标记
+            createHorizonDirectionMarkers();
+            
+            // 初始更新
+            updateEarthAxisAndPoles();
+            updateSunPosition();
+            updateMoonPosition();
+            
+            // 添加视图控制按钮事件
+            setupViewControls();
+            
+            // 窗口大小调整处理
+            window.addEventListener('resize', onWindowResize);
+            
+            // 开始动画循环
+            animate();
+        }
+        
+        // 初始化3D月相模型
+        function initMoonPhase3D() {
+            console.log('初始化3D月相模型...');
+            
+            const container = document.getElementById('moon-phase-3d-canvas');
+            
+            // 创建场景
+            moonPhaseScene = new THREE.Scene();
+            moonPhaseScene.background = new THREE.Color(0x0a192f);
+            
+            // 创建相机（固定视角）
+            const width = 200;
+            const height = 200;
+            moonPhaseCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
+            moonPhaseCamera.position.set(0, 0, 3); // 从正面观看
+            
+            // 创建渲染器
+            moonPhaseRenderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true,
+                canvas: container
+            });
+            moonPhaseRenderer.setSize(width, height);
+            moonPhaseRenderer.setPixelRatio(window.devicePixelRatio);
+            
+            // 创建月球模型
+            createMoonPhaseModel();
+            
+            // 开始动画循环
+            animateMoonPhase();
+        }
+        
+        function createMoonPhaseModel() {
+            // 创建月球球体
+            const geometry = new THREE.SphereGeometry(1, 64, 64);
+            
+            // 创建暗面材质（月球背对太阳的部分）
+            const darkMaterial = new THREE.MeshPhongMaterial({
+                color: 0x333333,
+                shininess: 30,
+                specular: 0x111111
+            });
+            
+            // 创建亮面材质（月球面向太阳的部分）
+            const illuminatedMaterial = new THREE.MeshPhongMaterial({
+                color: 0xf0f0f0,
+                shininess: 20,
+                specular: 0xaaaaaa,
+                emissive: 0x222222,
+                emissiveIntensity: 0.2
+            });
+            
+            // 创建暗面模型
+            darkSide = new THREE.Mesh(geometry, darkMaterial);
+            darkSide.position.set(0, 0, 0);
+            moonPhaseScene.add(darkSide);
+            
+            // 创建亮面模型（将作为月相显示）
+            illuminatedSide = new THREE.Mesh(geometry, illuminatedMaterial);
+            illuminatedSide.position.set(0, 0, 0);
+            moonPhaseScene.add(illuminatedSide);
+            
+            // 添加光源（模拟太阳）
+            sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            sunLight.position.set(5, 3, 5);
+            moonPhaseScene.add(sunLight);
+            
+            // 添加环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            moonPhaseScene.add(ambientLight);
+            
+            // 添加辅助参考线（帮助理解角度）
+            createMoonPhaseReference();
+            
+            // 修复：在创建完模型后才调用 updateMoonPhase3D()
+            updateMoonPhase3D();
+        }
+        
+        function createMoonPhaseReference() {
+            // 添加坐标轴
+            const axesHelper = new THREE.AxesHelper(1.5);
+            moonPhaseScene.add(axesHelper);
+            
+            // 添加网格平面作为背景
+            const gridHelper = new THREE.GridHelper(3, 10, 0x444444, 0x222222);
+            gridHelper.position.z = -1.5;
+            moonPhaseScene.add(gridHelper);
+            
+            // 添加文字标签
+            const labels = [
+                { text: "太阳方向", position: [2, 1.2, 0], color: "#ffcc00" },
+                { text: "地球视角", position: [0, -1.5, 0], color: "#64ffda" }
+            ];
+            
+            labels.forEach(label => {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 128;
+                canvas.height = 64;
+                
+                context.fillStyle = label.color;
+                context.font = 'bold 20px Arial';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(label.text, 64, 32);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMaterial = new THREE.SpriteMaterial({ 
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.position.set(...label.position);
+                sprite.scale.set(1, 0.5, 1);
+                moonPhaseScene.add(sprite);
+            });
+        }
+        
+        function createCelestialSphere() {
+            const celestialRadius = 10;
+            
+            const geometry = new THREE.SphereGeometry(celestialRadius, 32, 32);
+            geometry.scale(-1, 1, 1);
+            
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x1a1a2e,
+                side: THREE.BackSide,
+                transparent: true,
+                opacity: 0.2
+            });
+            
+            celestialSphere = new THREE.Mesh(geometry, material);
+            celestialSphere.visible = params.showCelestialSphere;
+            scene.add(celestialSphere);
+        }
+        
+        function createHorizonPlane() {
+            const horizonRadius = 10;
+            
+            // 创建地平面 - 使用更亮的颜色突出日影
+            const geometry = new THREE.CircleGeometry(horizonRadius, 64);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x6a994e,  // 更亮的绿色
+                side: THREE.DoubleSide,
+                transparent: false,
+                opacity: 1.0
+            });
+            
+            horizonPlane = new THREE.Mesh(geometry, material);
+            horizonPlane.rotation.x = -Math.PI / 2;
+            scene.add(horizonPlane);
+            
+            // 添加地面纹理网格
+            const gridSize = 10;
+            const divisions = 10;
+            const gridHelper = new THREE.GridHelper(gridSize * 2, divisions, 0xffffff, 0xcccccc);
+            gridHelper.position.y = 0.01; // 稍微高于地面平面
+            scene.add(gridHelper);
+            
+            // 添加地平线圆圈 - 使用更亮的颜色
+            const circleGeometry = new THREE.RingGeometry(horizonRadius - 0.05, horizonRadius, 64);
+            const circleMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x8BC34A,  // 更亮的绿色
+                linewidth: 2
+            });
+            
+            const horizonCircle = new THREE.LineLoop(circleGeometry, circleMaterial);
+            horizonCircle.rotation.x = Math.PI / 2;
+            scene.add(horizonCircle);
+        }
+        
+        function createSunPath() {
+            const celestialRadius = 10;
+            const points = [];
+            
+            const declination = calculateSolarDeclination(params.dayOfYear);
+            
+            for (let hour = 0; hour <= 24; hour += 0.5) {
+                const sunPos = calculateSunPosition(params.latitude, declination, hour);
+                
+                if (sunPos.altitude >= 0) {
+                    const point = convertAltAzToCartesian(sunPos.altitude, sunPos.azimuth, celestialRadius);
+                    points.push(point);
+                }
+            }
+            
+            if (points.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0xffcc00,
+                    linewidth: 2
+                });
+                
+                sunPath = new THREE.Line(geometry, material);
+                scene.add(sunPath);
+            }
+        }
+        
+        function createSun() {
+            const geometry = new THREE.SphereGeometry(0.4, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xff3333,
+                emissive: 0xff6633,
+                emissiveIntensity: 0.5
+            });
+            
+            sun = new THREE.Mesh(geometry, material);
+            scene.add(sun);
+        }
+        
+        function createMoon() {
+            const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xccccff,
+                transparent: true,
+                opacity: 0.9
+            });
+            
+            moon = new THREE.Mesh(geometry, material);
+            scene.add(moon);
+        }
+        
+        function createMoonPath() {
+            const celestialRadius = 10;
+            const points = [];
+            
+            // 使用独立的月球赤纬（不同于太阳）
+            const moonDeclination = calculateMoonDeclination(params.dayOfYear);
+            
+            for (let hour = 0; hour <= 24; hour += 0.5) {
+                // 使用独立的月球位置计算方法
+                const moonPos = calculateIndependentMoonPosition(params.latitude, moonDeclination, hour);
+                
+                if (moonPos.altitude >= 0) {
+                    const point = convertAltAzToCartesian(moonPos.altitude, moonPos.azimuth, celestialRadius);
+                    points.push(point);
+                }
+            }
+            
+            if (points.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0x8888ff,
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                
+                moonPath = new THREE.Line(geometry, material);
+                scene.add(moonPath);
+            }
+        }
+        
+        function createPole() {
+            const geometry = new THREE.CylinderGeometry(0.05, 0.05, params.poleHeight, 8);
+            const material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+            
+            pole = new THREE.Mesh(geometry, material);
+            pole.position.y = params.poleHeight / 2;
+            scene.add(pole);
+            
+            const baseGeometry = new THREE.CylinderGeometry(0.1, 0.15, 0.1, 8);
+            const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x654321 });
+            
+            const poleBase = new THREE.Mesh(baseGeometry, baseMaterial);
+            scene.add(poleBase);
+        }
+        
+        function createShadow() {
+            // 创建更明显的日影
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0x000000,
+                linewidth: 5,  // 增加线宽
+                transparent: false
+            });
+            
+            const points = [
+                new THREE.Vector3(0, 0.02, 0),
+                new THREE.Vector3(0, 0.02, 0)
+            ];
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            shadow = new THREE.Line(geometry, material);
+            
+            // 添加阴影的淡出效果
+            const shadowFadeMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.2,
+                side: THREE.DoubleSide
+            });
+            
+            const fadeGeometry = new THREE.PlaneGeometry(0.1, 0.1);
+            const shadowFade = new THREE.Mesh(fadeGeometry, shadowFadeMaterial);
+            shadowFade.position.y = 0.01;
+            shadowFade.rotation.x = -Math.PI / 2;
+            shadowFade.name = "shadowFade";
+            scene.add(shadowFade);
+            
+            scene.add(shadow);
+        }
+        
+        function createEarthAxisAndPoles() {
+            // 地轴 - 现在将与太阳轨迹垂直
+            const axisMaterial = new THREE.LineBasicMaterial({ 
+                color: 0xff00ff,
+                linewidth: 2
+            });
+            
+            const axisPoints = [
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, 0)
+            ];
+            
+            const axisGeometry = new THREE.BufferGeometry().setFromPoints(axisPoints);
+            earthAxis = new THREE.Line(axisGeometry, axisMaterial);
+            scene.add(earthAxis);
+            
+            // 天北极 - 现在与天南极对调（原天南极位置）
+            const northPoleGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const northPoleMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x00ffff  // 青色，原天北极颜色
+            });
+            
+            northCelestialPole = new THREE.Mesh(northPoleGeometry, northPoleMaterial);
+            scene.add(northCelestialPole);
+            
+            // 天南极 - 现在与天北极对调（原天北极位置）
+            const southPoleGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const southPoleMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff9900  // 橙色，原天南极颜色
+            });
+            
+            southCelestialPole = new THREE.Mesh(southPoleGeometry, southPoleMaterial);
+            scene.add(southCelestialPole);
+        }
+        
+        function createDirectionMarkers() {
+            const horizonRadius = 10;
+            // 正确的方位系统：北在0°，东在90°，南在180°，西在270°
+            const directions = [
+                { text: "N", angle: 0, color: 0xff0000 },      // 北 - 红色
+                { text: "E", angle: 90, color: 0x00ff00 },     // 东 - 绿色
+                { text: "S", angle: 180, color: 0x0000ff },    // 南 - 蓝色
+                { text: "W", angle: 270, color: 0xffff00 }     // 西 - 黄色
+            ];
+            
+            // 清除已有的箭头
+            directionArrows.forEach(arrow => scene.remove(arrow));
+            directionArrows = [];
+            
+            directions.forEach(dir => {
+                const angle = dir.angle * Math.PI / 180;
+                const x = horizonRadius * Math.sin(angle);
+                const z = -horizonRadius * Math.cos(angle);
+                
+                // 创建箭头
+                const arrowLength = 1.5;
+                const arrowHeadLength = 0.4;
+                const arrowHeadWidth = 0.25;
+                
+                const arrow = new THREE.ArrowHelper(
+                    new THREE.Vector3(x, 0, z).normalize(),
+                    new THREE.Vector3(x * 0.7, 0.1, z * 0.7),
+                    arrowLength,
+                    dir.color,
+                    arrowHeadLength,
+                    arrowHeadWidth
+                );
+                
+                scene.add(arrow);
+                directionArrows.push(arrow);
+                
+                // 创建方向线
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0.1, 0),
+                    new THREE.Vector3(x * 0.9, 0.1, z * 0.9)
+                ]);
+                
+                const lineMaterial = new THREE.LineBasicMaterial({ 
+                    color: dir.color,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const line = new THREE.Line(lineGeometry, lineMaterial);
+                scene.add(line);
+                directionArrows.push(line);
+            });
+        }
+        
+        function createHorizonDirectionMarkers() {
+            const horizonRadius = 10.5;
+            // 正确的方位系统：北在0°，东在90°，南在180°，西在270°
+            const directions = [
+                { text: "北", angle: 0, color: "#ff0000" },    // 北 - 红色
+                { text: "东", angle: 90, color: "#00ff00" },   // 东 - 绿色
+                { text: "南", angle: 180, color: "#0000ff" },  // 南 - 蓝色
+                { text: "西", angle: 270, color: "#ffff00" }   // 西 - 黄色
+            ];
+            
+            // 清除已有的标签
+            directionLabels.forEach(label => scene.remove(label));
+            directionLabels = [];
+            
+            directions.forEach(dir => {
+                const angle = dir.angle * Math.PI / 180;
+                const x = horizonRadius * Math.sin(angle);
+                const z = -horizonRadius * Math.cos(angle);
+                
+                // 创建Canvas纹理用于文字
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 128;
+                canvas.height = 128;
+                
+                // 绘制文字
+                context.fillStyle = dir.color;
+                context.font = 'bold 60px Arial';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(dir.text, 64, 64);
+                
+                // 添加白色描边
+                context.strokeStyle = '#ffffff';
+                context.lineWidth = 4;
+                context.strokeText(dir.text, 64, 64);
+                
+                // 创建纹理
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMaterial = new THREE.SpriteMaterial({ 
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.position.set(x, 0.1, z);
+                sprite.scale.set(1.5, 1.5, 1.5);
+                scene.add(sprite);
+                directionLabels.push(sprite);
+            });
+            
+            // 添加地平线标记点
+            for (let i = 0; i < 360; i += 30) {
+                const angle = i * Math.PI / 180;
+                const x = 10 * Math.sin(angle);
+                const z = -10 * Math.cos(angle);
+                
+                const geometry = new THREE.CircleGeometry(0.05, 8);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                
+                const marker = new THREE.Mesh(geometry, material);
+                marker.position.set(x, 0.02, z);
+                marker.rotation.x = -Math.PI / 2;
+                scene.add(marker);
+                horizonMarkers.push(marker);
+            }
+        }
+        
+        // 计算太阳赤纬
+        function calculateSolarDeclination(dayOfYear) {
+            const declination = 23.45 * Math.sin(2 * Math.PI * (dayOfYear - 81) / 365.242);
+            return declination;
+        }
+        
+        // 计算月球赤纬（独立于太阳）
+        function calculateMoonDeclination(dayOfYear) {
+            // 更准确的月球赤纬计算
+            // 月球轨道倾角约为5.145度
+            const moonOrbitInclination = params.moonOrbitInclination;
+            
+            // 月球的恒星月周期（绕地球一周的时间）约为27.32166天
+            const siderealMonth = 27.32166;
+            
+            // 计算月球在轨道上的位置（相对于春分点）
+            // 使用月龄（params.moonPhase），但调整为恒星月周期
+            const moonPositionInOrbit = params.moonPhase * (siderealMonth / 29.53);
+            
+            // 计算月球赤纬，考虑轨道倾角
+            // 月球赤纬的最大值约为±(23.45° + 5.145°)，最小值约为±(23.45° - 5.145°)
+            // 这里使用更准确的计算方法
+            const moonDeclination = moonOrbitInclination * Math.sin(2 * Math.PI * moonPositionInOrbit / siderealMonth);
+            
+            return moonDeclination;
+        }
+        
+        // 计算日出日落时间
+        function calculateSunriseSunset(latitude, dayOfYear) {
+            // 太阳赤纬
+            const declination = calculateSolarDeclination(dayOfYear);
+            
+            // 日出日落时的太阳高度角（考虑大气折射）
+            const altitude = -0.8333; // 度
+            
+            // 转换为弧度
+            const latRad = latitude * Math.PI / 180;
+            const decRad = declination * Math.PI / 180;
+            const altRad = altitude * Math.PI / 180;
+            
+            // 计算时角（太阳在东方和西方的角度）
+            // 公式：cos(时角) = (sin(高度角) - sin(纬度) * sin(赤纬)) / (cos(纬度) * cos(赤纬))
+            const cosHourAngle = (Math.sin(altRad) - Math.sin(latRad) * Math.sin(decRad)) / (Math.cos(latRad) * Math.cos(decRad));
+            
+            // 如果cosHourAngle > 1，太阳全天可见（极昼）
+            // 如果cosHourAngle < -1，太阳全天不可见（极夜）
+            let hourAngle;
+            if (cosHourAngle >= 1) {
+                // 极夜：日出日落为0
+                return { sunrise: 0, sunset: 0 };
+            } else if (cosHourAngle <= -1) {
+                // 极昼：日出日落为24
+                return { sunrise: 24, sunset: 24 };
+            } else {
+                // 正常情况：计算时角（弧度）
+                hourAngle = Math.acos(cosHourAngle);
+            }
+            
+            // 将时角转换为小时（1小时=15度）
+            const hourAngleHours = hourAngle * 12 / Math.PI; // 除以π得到弧度，再乘以12得到小时数
+            
+            // 正午时间（12:00）
+            const noon = 12;
+            
+            // 日出时间 = 正午 - 时角小时数
+            const sunrise = noon - hourAngleHours;
+            
+            // 日落时间 = 正午 + 时角小时数
+            const sunset = noon + hourAngleHours;
+            
+            return { sunrise: sunrise, sunset: sunset };
+        }
+        
+        // 计算月出月落时间
+        function calculateMoonriseMoonset(latitude, dayOfYear, timeOfDay) {
+            // 月球赤纬
+            const declination = calculateMoonDeclination(dayOfYear);
+            
+            // 月出月落时的月球高度角（考虑大气折射）
+            const altitude = -0.8333; // 度
+            
+            // 转换为弧度
+            const latRad = latitude * Math.PI / 180;
+            const decRad = declination * Math.PI / 180;
+            const altRad = altitude * Math.PI / 180;
+            
+            // 计算时角（月球在东方和西方的角度）
+            // 公式：cos(时角) = (sin(高度角) - sin(纬度) * sin(赤纬)) / (cos(纬度) * cos(赤纬))
+            const cosHourAngle = (Math.sin(altRad) - Math.sin(latRad) * Math.sin(decRad)) / (Math.cos(latRad) * Math.cos(decRad));
+            
+            // 如果cosHourAngle > 1，月球全天可见
+            // 如果cosHourAngle < -1，月球全天不可见
+            let hourAngle;
+            if (cosHourAngle >= 1) {
+                // 全天不可见
+                return { moonrise: 0, moonset: 0 };
+            } else if (cosHourAngle <= -1) {
+                // 全天可见
+                return { moonrise: 24, moonset: 24 };
+            } else {
+                // 正常情况：计算时角（弧度）
+                hourAngle = Math.acos(cosHourAngle);
+            }
+            
+            // 将时角转换为小时（1小时=15度）
+            const hourAngleHours = hourAngle * 12 / Math.PI;
+            
+            // 更精确的月球上中天时间计算
+            // 月球每天大约晚50分钟升起，一个月相周期（29.53天）后回到原位
+            // 使用月龄计算上中天时间：新月时约在12点，满月时约在0点
+            // 这里使用更准确的公式：上中天时间 = 12 + (月龄-14.765) * (24/29.53)
+            // 14.765是满月时的月龄（约14.8天），此时月球与太阳相对
+            const moonTransitHour = (12 + (params.moonPhase - 14.765) * (24 / 29.53)) % 24;
+            
+            // 确保结果在0-24小时范围内
+            const normalizedMoonTransitHour = (moonTransitHour + 24) % 24;
+            
+            // 月出时间 = 上中天时间 - 时角小时数
+            const moonrise = (normalizedMoonTransitHour - hourAngleHours + 24) % 24;
+            
+            // 月落时间 = 上中天时间 + 时角小时数
+            const moonset = (normalizedMoonTransitHour + hourAngleHours + 24) % 24;
+            
+            return { moonrise: moonrise, moonset: moonset };
+        }
+        
+        // 计算太阳位置（东升西落）- 使用正确的方位系统
+        function calculateSunPosition(latitude, declination, hour) {
+            const latRad = latitude * Math.PI / 180;
+            const decRad = declination * Math.PI / 180;
+            const hourAngle = (hour - 12) * 15 * Math.PI / 180;
+            
+            const sinAltitude = Math.sin(latRad) * Math.sin(decRad) + 
+                               Math.cos(latRad) * Math.cos(decRad) * Math.cos(hourAngle);
+            let altitude = Math.asin(sinAltitude) * 180 / Math.PI;
+            
+            let azimuth;
+            if (Math.abs(sinAltitude) >= 0.9999) {
+                azimuth = 0;
+            } else {
+                const cosAzimuth = (Math.sin(decRad) - Math.sin(latRad) * sinAltitude) / 
+                                  (Math.cos(latRad) * Math.cos(Math.asin(sinAltitude)));
+                azimuth = Math.acos(Math.max(-1, Math.min(1, cosAzimuth))) * 180 / Math.PI;
+            }
+            
+            // 修正：使用正确的方位角系统（北=0°，东=90°，南=180°，西=270°）
+            // 太阳从东方升起（90°），经过南方（180°），在西方落下（270°）
+            if (hourAngle <= 0) { // 上午（0-12点）
+                // 上午太阳在东南方向
+                azimuth = 180 - azimuth;
+            } else { // 下午（12-24点）
+                // 下午太阳在西南方向
+                azimuth = 180 + azimuth;
+            }
+            
+            // 确保方位角在0-360度范围内
+            azimuth = (azimuth + 360) % 360;
+            
+            return { altitude, azimuth };
+        }
+        
+        // 计算独立月球位置（与太阳轨迹分离）
+        function calculateIndependentMoonPosition(latitude, declination, hour) {
+            const latRad = latitude * Math.PI / 180;
+            const decRad = declination * Math.PI / 180;
+            
+            // 月亮相对于太阳的时间偏移（根据月相）
+            const moonHourOffset = 360 - (params.moonPhase / 29.53) * 24;
+            const moonHour = (hour + moonHourOffset) % 24;
+            const hourAngle = (moonHour - 12) * 15 * Math.PI / 180;
+            
+            const sinAltitude = Math.sin(latRad) * Math.sin(decRad) + 
+                               Math.cos(latRad) * Math.cos(decRad) * Math.cos(hourAngle);
+            let altitude = Math.asin(sinAltitude) * 180 / Math.PI;
+            
+            let azimuth;
+            if (Math.abs(sinAltitude) >= 0.9999) {
+                azimuth = 0;
+            } else {
+                const cosAzimuth = (Math.sin(decRad) - Math.sin(latRad) * sinAltitude) / 
+                                  (Math.cos(latRad) * Math.cos(Math.asin(sinAltitude)));
+                azimuth = Math.acos(Math.max(-1, Math.min(1, cosAzimuth))) * 180 / Math.PI;
+            }
+            
+            // 使用与太阳相同的方位角计算规则，但考虑月球轨道倾角
+            if (hourAngle <= 0) { // 上午（0-12点）
+                azimuth = 180 - azimuth;
+            } else { // 下午（12-24点）
+                azimuth = 180 + azimuth;
+            }
+            
+            // 添加月球轨道倾角对方位角的微小调整
+            const inclinationAdjustment = params.moonOrbitInclination * Math.sin(hourAngle);
+            azimuth += inclinationAdjustment;
+            
+            // 确保方位角在0-360度范围内
+            azimuth = (azimuth + 360) % 360;
+            
+            return { altitude, azimuth };
+        }
+        
+        // 计算月相
+        function calculateMoonPhase(moonAge) {
+            let phaseName = "";
+            let illumination = 0;
+            
+            // 精确的月相计算
+            if (moonAge < 1 || moonAge >= 29) {
+                phaseName = "新月";
+                illumination = 0;
+            } else if (moonAge < 3.5) {
+                phaseName = "蛾眉月";
+                illumination = 0.25;
+            } else if (moonAge < 7.4) {
+                phaseName = "上弦月";
+                illumination = 0.5;
+            } else if (moonAge < 10.5) {
+                phaseName = "凸月";
+                illumination = 0.75;
+            } else if (moonAge < 14.8) {
+                phaseName = "凸月";
+                illumination = 0.9;
+            } else if (moonAge < 16) {
+                phaseName = "满月";
+                illumination = 1.0;
+            } else if (moonAge < 19) {
+                phaseName = "凸月";
+                illumination = 0.9;
+            } else if (moonAge < 22.1) {
+                phaseName = "凸月";
+                illumination = 0.75;
+            } else if (moonAge < 25.2) {
+                phaseName = "下弦月";
+                illumination = 0.5;
+            } else if (moonAge < 28) {
+                phaseName = "残月";
+                illumination = 0.25;
+            } else {
+                phaseName = "残月";
+                illumination = 0.1;
+            }
+            
+            // 计算距角（月球与太阳的角度差）
+            const elongation = (moonAge / 29.53) * 360;
+            
+            // 计算农历日期
+            const lunarDay = Math.floor(moonAge) + 1;
+            const lunarDayStr = getLunarDayString(lunarDay);
+            
+            return {
+                name: phaseName,
+                age: moonAge,
+                lunarDay: lunarDayStr,
+                illumination: Math.max(0, Math.min(1, illumination)),
+                elongation: elongation
+            };
+        }
+        
+        // 将数字转换为农历日期字符串
+        function getLunarDayString(day) {
+            if (day <= 0 || day > 30) {
+                return "初一";
+            }
+            
+            const lunarDayNames = [
+                "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
+                "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
+                "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十"
+            ];
+            
+            return lunarDayNames[day - 1];
+        }
+        
+        // 根据一年中的第几天获取月份和日期
+        function getMonthAndDayFromDayOfYear(dayOfYear) {
+            // 假设非闰年
+            const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            
+            let month = 0;
+            let day = dayOfYear;
+            
+            for (let i = 0; i < monthDays.length; i++) {
+                if (day <= monthDays[i]) {
+                    month = i + 1;
+                    break;
+                }
+                day -= monthDays[i];
+            }
+            
+            return { month, day };
+        }
+        
+        // 根据一年中的第几天获取日期字符串
+        function getDateStringFromDayOfYear(dayOfYear) {
+            const { month, day } = getMonthAndDayFromDayOfYear(dayOfYear);
+            // 获取农历日期
+            const moonPhaseInfo = calculateMoonPhase(params.moonPhase);
+            return `${month}月${day}日（农历${moonPhaseInfo.lunarDay}）`;
+        }
+        
+        // 更新3D月相模型
+        function updateMoonPhase3D() {
+            // 检查 sunLight 是否已初始化
+            if (!sunLight) {
+                console.warn('sunLight 未初始化，跳过 updateMoonPhase3D');
+                return;
+            }
+            
+            const moonPhase = calculateMoonPhase(params.moonPhase);
+            
+            // 更新文本
+            document.getElementById('moonPhase3DName').textContent = moonPhase.name;
+            document.getElementById('moonPhase3DAge').textContent = `农历: ${moonPhase.lunarDay}`;
+            
+            // 计算太阳相对于月球的角度（从地球视角）
+            // 0°: 新月（太阳在月球后面）
+            // 90°: 上弦月
+            // 180°: 满月（太阳在月球前面）
+            // 270°: 下弦月
+            const sunAngle =180 - (params.moonPhase / 29.53) * 360;
+            
+            // 根据月相调整太阳位置
+            // 将角度转换为弧度
+            const sunAngleRad = sunAngle * Math.PI / 180;
+            
+            // 太阳位置：绕Y轴旋转
+            const sunDistance = 5;
+            const sunX = sunDistance * Math.sin(sunAngleRad);
+            const sunZ = sunDistance * Math.cos(sunAngleRad);
+            
+            // 更新太阳光源位置
+            sunLight.position.set(sunX, 0, sunZ);
+            
+            // 根据月相调整月球亮面的可见部分
+            // 使用剪切平面来显示正确的月相
+            updateMoonPhaseClipping(sunAngle);
+            
+            // 控制3D月相模型的可见性
+            document.getElementById('moonPhase3DContainer').style.display = 
+                params.showMoonPhase3D ? 'block' : 'none';
+        }
+        
+        function updateMoonPhaseClipping(sunAngle) {
+            // 检查 illuminatedSide 是否已初始化
+            if (!illuminatedSide) {
+                console.warn('illuminatedSide 未初始化，跳过 updateMoonPhaseClipping');
+                return;
+            }
+            
+            // 清除现有的剪切平面
+            if (illuminatedSide.material.clippingPlanes) {
+                illuminatedSide.material.clippingPlanes = [];
+            }
+            
+            // 根据太阳角度创建剪切平面
+            // 太阳角度：0°=新月，180°=满月
+            const isWaxing = params.moonPhase < 14.8; // 盈月
+            
+            if (sunAngle < 180) {
+                // 盈月阶段：照亮右侧
+                const clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+                illuminatedSide.material.clippingPlanes = [clipPlane];
+                illuminatedSide.material.clipShadows = true;
+                
+                // 调整剪切平面的位置
+                const clipOffset = Math.cos(sunAngle * Math.PI / 180);
+                clipPlane.constant = clipOffset;
+            } else {
+                // 亏月阶段：照亮左侧
+                const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+                illuminatedSide.material.clippingPlanes = [clipPlane];
+                illuminatedSide.material.clipShadows = true;
+                
+                // 调整剪切平面的位置
+                const clipOffset = Math.cos((sunAngle - 180) * Math.PI / 180);
+                clipPlane.constant = clipOffset;
+            }
+            
+            // 更新材质
+            illuminatedSide.material.needsUpdate = true;
+        }
+        
+        function convertAltAzToCartesian(altitude, azimuth, radius) {
+            const altRad = altitude * Math.PI / 180;
+            const azRad = azimuth * Math.PI / 180;
+            
+            const x = radius * Math.cos(altRad) * Math.sin(azRad);
+            const y = radius * Math.sin(altRad);
+            const z = radius * Math.cos(altRad) * Math.cos(azRad);
+            
+            return new THREE.Vector3(x, y, z);
+        }
+        
+        function updateSunPosition() {
+            const celestialRadius = 10;
+            const declination = calculateSolarDeclination(params.dayOfYear);
+            const sunPos = calculateSunPosition(params.latitude, declination, params.timeOfDay);
+            
+            // 更新太阳位置
+            const sunPosition = convertAltAzToCartesian(sunPos.altitude, sunPos.azimuth, celestialRadius);
+            sun.position.copy(sunPosition);
+            
+            // 更新太阳方位角变量
+            params.showsunazimuth = sunPos.azimuth;
+            
+            // 更新太阳轨迹
+            updateSunPath();
+            
+            // 更新日影
+            updateShadow(sunPos.altitude, sunPos.azimuth);
+            
+            // 更新数据面板
+            updateSunDataPanel(sunPos.altitude, sunPos.azimuth);
+        }
+        
+        function updateMoonPosition() {
+            const celestialRadius = 10;
+            // 使用独立的月球赤纬计算
+            const moonDeclination = calculateMoonDeclination(params.dayOfYear);
+            const moonPos = calculateIndependentMoonPosition(params.latitude, moonDeclination, params.timeOfDay);
+            
+            // 更新月亮位置
+            const moonPosition = convertAltAzToCartesian(moonPos.altitude, moonPos.azimuth, celestialRadius);
+            moon.position.copy(moonPosition);
+            
+            // 更新月球方位角变量
+            params.showmoonazimuth = moonPos.azimuth;
+            
+            // 更新月亮轨迹
+            updateMoonPath();
+            
+            // 更新月亮数据面板
+            updateMoonDataPanel(moonPos.altitude, moonPos.azimuth);
+            
+            // 更新3D月相模型
+            updateMoonPhase3D();
+            
+            // 更新潮汐信息
+            updateTideInfo();
+            
+            // 控制可见性
+            moon.visible = params.showMoon;
+            if (moonPath) moonPath.visible = params.showMoon;
+        }
+        
+        function updateSunPath() {
+            if (sunPath) scene.remove(sunPath);
+            
+            const celestialRadius = 10;
+            const points = [];
+            const declination = calculateSolarDeclination(params.dayOfYear);
+            
+            for (let hour = 0; hour <= 24; hour += 0.5) {
+                const sunPos = calculateSunPosition(params.latitude, declination, hour);
+                if (sunPos.altitude >= 0) {
+                    const point = convertAltAzToCartesian(sunPos.altitude, sunPos.azimuth, celestialRadius);
+                    points.push(point);
+                }
+            }
+            
+            if (points.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0xffcc00,
+                    linewidth: 2
+                });
+                sunPath = new THREE.Line(geometry, material);
+                scene.add(sunPath);
+            }
+        }
+        
+        function updateMoonPath() {
+            if (moonPath) scene.remove(moonPath);
+            
+            const celestialRadius = 10;
+            const points = [];
+            // 使用独立的月球赤纬计算
+            const moonDeclination = calculateMoonDeclination(params.dayOfYear);
+            
+            for (let hour = 0; hour <= 24; hour += 0.5) {
+                const moonPos = calculateIndependentMoonPosition(params.latitude, moonDeclination, hour);
+                if (moonPos.altitude >= 0) {
+                    const point = convertAltAzToCartesian(moonPos.altitude, moonPos.azimuth, celestialRadius);
+                    points.push(point);
+                }
+            }
+            
+            if (points.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0x8888ff,
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                moonPath = new THREE.Line(geometry, material);
+                scene.add(moonPath);
+            }
+        }
+        
+        function updateShadow(altitude, azimuth) {
+            const horizonRadius = 10;
+            
+            if (altitude > 0 && altitude < 90) {
+                const shadowLen = params.poleHeight / Math.tan(altitude * Math.PI / 180);
+                const shadowAzimuth = (azimuth + 180) % 360;
+                const shadowAzimuthRad = shadowAzimuth * Math.PI / 180;
+                
+                const maxShadowLen = horizonRadius;
+                const actualShadowLen = Math.min(shadowLen, maxShadowLen);
+                
+                const endX = actualShadowLen * Math.sin(shadowAzimuthRad);
+                const endZ = actualShadowLen * Math.cos(shadowAzimuthRad);
+                
+                // 更新日影线
+                const points = [
+                    new THREE.Vector3(0, 0.02, 0),
+                    new THREE.Vector3(endX, 0.02, endZ)
+                ];
+                
+                shadow.geometry.setFromPoints(points);
+                shadow.visible = true;
+                
+                // 更新阴影淡出效果
+                const shadowFade = scene.getObjectByName("shadowFade");
+                if (shadowFade) {
+                    const fadeLen = actualShadowLen * 0.2;
+                    const fadeGeometry = new THREE.PlaneGeometry(fadeLen, fadeLen);
+                    shadowFade.geometry.dispose();
+                    shadowFade.geometry = fadeGeometry;
+                    
+                    shadowFade.position.set(
+                        endX * 0.5,
+                        0.01,
+                        endZ * 0.5
+                    );
+                    
+                    const rotationAngle = shadowAzimuthRad;
+                    shadowFade.rotation.y = -rotationAngle;
+                    shadowFade.visible = true;
+                }
+            } else {
+                shadow.visible = false;
+                const shadowFade = scene.getObjectByName("shadowFade");
+                if (shadowFade) {
+                    shadowFade.visible = false;
+                }
+            }
+        }
+        
+        function updateEarthAxisAndPoles() {
+            const celestialRadius = 10;
+            
+            // 计算天北极和天南极的高度（现在对调）
+            // 注意：现在天北极（青色）在南方，天南极（橙色）在北方
+            const northPoleAltitude = params.latitude;  // 对调：北极为负纬度（在南方）
+            const southPoleAltitude = -params.latitude;   // 对调：南极为正纬度（在北方）
+            
+            // 地轴与太阳轨迹垂直：太阳轨迹是东西方向的（东升西落）
+            // 所以地轴应该指向南北方向，但为了让地轴与太阳轨迹垂直，
+            // 我们需要让地轴指向东西方向（与太阳轨迹方向垂直）
+            
+            // 计算太阳轨迹的主要方向（计算正午太阳的位置）
+            const declination = calculateSolarDeclination(params.dayOfYear);
+            const noonSunPos = calculateSunPosition(params.latitude, declination, 12);
+            
+            // 地轴方向应该与太阳轨迹垂直
+            // 太阳轨迹主要是东西方向，所以地轴应该是南北方向
+            // 但为了让地轴真正与太阳轨迹垂直，我们根据太阳位置调整
+            
+            // 计算地轴方向：与太阳位置垂直
+            // 地轴应该指向南北方向（0°或180°），这与太阳的东西运动轨迹垂直
+            const earthAxisAzimuth = 0; // 指向正北（与太阳的东升西落垂直）
+            
+            // 地轴的高度应该等于观测者纬度的余角（90°-纬度）
+            const earthAxisAltitude =  - (params.latitude);
+            
+            // 更新地轴线
+            const axisEndPos = convertAltAzToCartesian(earthAxisAltitude, earthAxisAzimuth, celestialRadius * 0.9);
+            
+            const axisPoints = [
+                //new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(
+                    -axisEndPos.x,
+                    -axisEndPos.y,
+                    -axisEndPos.z
+                ),new THREE.Vector3(
+                    axisEndPos.x,
+                    axisEndPos.y,
+                    axisEndPos.z
+                )
+            ];
+            
+            earthAxis.geometry.setFromPoints(axisPoints);
+            
+            // 更新天北极位置（现在在南方，高度为负纬度）
+            // 天北极（青色）在南方（180°方位角）
+            const northPolePos = convertAltAzToCartesian(northPoleAltitude, 180, celestialRadius);
+            
+            // 更新天南极位置（现在在北方，高度为正纬度）
+            // 天南极（橙色）在北方（0°方位角）
+            const southPolePos = convertAltAzToCartesian(southPoleAltitude, 0, celestialRadius);
+            
+            // 更新天北极和天南极位置
+            northCelestialPole.position.copy(northPolePos);
+            southCelestialPole.position.copy(southPolePos);
+            
+            // 更新显示
+            document.getElementById('dataNorthPoleHeight').textContent = `${northPoleAltitude.toFixed(1)}°`;
+            document.getElementById('dataSouthPoleHeight').textContent = `${southPoleAltitude.toFixed(1)}°`;
+            document.getElementById('infoNorthPoleHeight').textContent = `${northPoleAltitude.toFixed(1)}°`;
+            document.getElementById('infoSouthPoleHeight').textContent = `${southPoleAltitude.toFixed(1)}°`;
+        }
+        
+        function updateSunDataPanel(altitude, azimuth) {
+            document.getElementById('sunAltitude').textContent = `${altitude.toFixed(1)}°`;
+            // 将方位角转换为以北方为0°顺时针的角度（北=0°，东=90°，南=180°，西=270°）
+            const displayAzimuth = (180 - azimuth + 360) % 360;
+            document.getElementById('sunAzimuth').textContent = `${displayAzimuth.toFixed(1)}°`;
+            document.getElementById('infoAltitude').textContent = `${altitude.toFixed(1)}°`;
+            document.getElementById('infoAzimuth').textContent = `${displayAzimuth.toFixed(1)}°`;
+            
+            // 打印太阳方位角变量
+            console.log('太阳原始方位角（南=0°逆时针）：', azimuth);
+            console.log('太阳显示方位角（北=0°顺时针）：', displayAzimuth);
+            console.log('showsunazimuth变量：', params.showsunazimuth);
+            
+            // 显示日期
+            const dateString = getDateStringFromDayOfYear(params.dayOfYear);
+            document.getElementById('currentDate').textContent = dateString;
+            // 在3D视图的信息面板中也显示日期
+            document.getElementById('infoDate').textContent = dateString;
+            
+            // 显示太阳直射点纬度
+            const declination = calculateSolarDeclination(params.dayOfYear);
+            document.getElementById('sunDirectLatitude').textContent = `${declination.toFixed(1)}°`;
+            // 在3D视图的信息面板中也显示太阳直射点纬度
+            document.getElementById('infoSunDirectLatitude').textContent = `${declination.toFixed(1)}°`;
+            
+            // 显示太阳直射点经度（地球每小时自转15度，12:00时为0°）
+            let longitude = (params.timeOfDay - 12) * 15;
+            let longitudeDir = 'E';
+            if (longitude < 0) {
+                longitude = Math.abs(longitude);
+                longitudeDir = 'W';
+            } else if (longitude > 180) {
+                longitude = 360 - longitude;
+                longitudeDir = 'W';
+            }
+            document.getElementById('sunDirectLongitude').textContent = `${longitude.toFixed(1)}°${longitudeDir}`;
+            
+            // 显示固定的杆长
+            document.getElementById('infoPoleShadowLength').textContent = `${params.poleHeight.toFixed(2)} m`;
+            
+            // 计算并显示日影长度
+            if (altitude > 0 && altitude < 90) {
+                const shadowLen = params.poleHeight / Math.tan(altitude * Math.PI / 180);
+                document.getElementById('shadowLength').textContent = `${shadowLen.toFixed(2)} m`;
+                // 更新3D视图中的日影长度
+                document.getElementById('infoSunShadowLength').textContent = `${shadowLen.toFixed(2)} m`;
+            } else {
+                document.getElementById('shadowLength').textContent = "无日影";
+                // 更新3D视图中的日影长度
+                document.getElementById('infoSunShadowLength').textContent = "无日影";
+            }
+            
+            // 阴影方向是太阳方位角的相反方向
+            const displayShadowDir = (displayAzimuth + 180) % 360;
+            document.getElementById('infoShadowDir').textContent = `${displayShadowDir.toFixed(1)}°`;
+            
+            const dayNight = altitude > 0 ? "白天" : "夜晚";
+            document.getElementById('dayNightStatus').textContent = dayNight;
+            
+            // 太阳升起方向
+            document.getElementById('sunRiseDirection').textContent = "东升西落";
+        }
+        
+        function updateMoonDataPanel(altitude, azimuth) {
+            const moonPhase = calculateMoonPhase(params.moonPhase);
+            const moonDeclination = calculateMoonDeclination(params.dayOfYear);
+            
+            document.getElementById('moonAltitude').textContent = `${altitude.toFixed(1)}°`;
+            // 将方位角转换为以北方为0°顺时针的角度（北=0°，东=90°，南=180°，西=270°）
+            const displayAzimuth = (180 - azimuth + 360) % 360;
+            document.getElementById('moonAzimuth').textContent = `${displayAzimuth.toFixed(1)}°`;
+            document.getElementById('infoMoonAltitude').textContent = `${altitude.toFixed(1)}°`;
+            document.getElementById('infoMoonAzimuth').textContent = `${displayAzimuth.toFixed(1)}°`;
+            document.getElementById('infoMoonDeclination').textContent = `${moonDeclination.toFixed(1)}°`;
+            
+            // 打印月球方位角变量
+            console.log('月球原始方位角（南=0°逆时针）：', azimuth);
+            console.log('月球显示方位角（北=0°顺时针）：', displayAzimuth);
+            console.log('showmoonazimuth变量：', params.showmoonazimuth);
+            
+            document.getElementById('dataMoonPhase').textContent = moonPhase.name;
+            document.getElementById('infoMoonPhase').textContent = moonPhase.name;
+            document.getElementById('dataMoonAge').textContent = `${moonPhase.lunarDay}`;
+            document.getElementById('moonElongation').textContent = `${moonPhase.elongation.toFixed(1)}°`;
+            
+            // 月球轨道倾角显示
+            document.getElementById('dataMoonOrbitInclination').textContent = `${params.moonOrbitInclination.toFixed(1)}°`;
+            document.getElementById('infoMoonInclination').textContent = `${params.moonOrbitInclination.toFixed(1)}°`;
+            document.getElementById('moonOrbitValue').textContent = `${params.moonOrbitInclination.toFixed(1)}°`;
+            
+            // 月亮升起方向
+            document.getElementById('moonRiseDirection').textContent = "东升西落";
+        }
+        
+        function updateDisplay() {
+            // 纬度显示
+            const latAbs = Math.abs(params.latitude);
+            const latDirection = params.latitude >= 0 ? 'N' : 'S';
+            const latDisplay = `${latAbs}°${latDirection}`;
+            
+            document.getElementById('latitudeValue').textContent = latDisplay;
+            document.getElementById('dataLatitude').textContent = latDisplay;
+            
+            // 日期显示 - 改为"月日（第天）"格式
+            const dateStr = getDateStringFromDayOfYear(params.dayOfYear);
+            document.getElementById('dateValue').textContent = dateStr;
+            
+            // 时间显示
+            const timeStr = formatTime(params.timeOfDay);
+            document.getElementById('timeValue').textContent = timeStr;
+            document.getElementById('currentTime').textContent = `当前时间：${timeStr}`;
+            
+            // 月相显示 - 改为农历显示
+            const moonPhase = calculateMoonPhase(params.moonPhase);
+            document.getElementById('moonPhaseValue').textContent = `农历${moonPhase.lunarDay}`;
+            
+            // 更新月亮图标
+            const moonIcon = document.getElementById('moon-icon');
+            moonIcon.style.color = params.showMoon ? '#64ffda' : '#a8b2d1';
+            
+            // 更新3D月相模型图标
+            const moon3DIcon = document.getElementById('moon-3d-icon');
+            moon3DIcon.style.color = params.showMoonPhase3D ? '#64ffda' : '#a8b2d1';
+            
+            // 更新天体信息图标
+            const celestialInfoIcon = document.getElementById('celestial-info-icon');
+            celestialInfoIcon.style.color = params.showCelestialInfo ? '#64ffda' : '#a8b2d1';
+            
+            // 更新杆长显示
+            document.getElementById('infoPoleShadowLength').textContent = `${params.poleHeight.toFixed(2)} m`;
+            
+            // 更新日出日落时间
+            const sunriseSunset = calculateSunriseSunset(params.latitude, params.dayOfYear);
+            document.getElementById('sunrise-time').textContent = formatTime(sunriseSunset.sunrise);
+            document.getElementById('sunset-time').textContent = formatTime(sunriseSunset.sunset);
+            
+            // 更新月出月落时间
+            const moonriseMoonset = calculateMoonriseMoonset(params.latitude, params.dayOfYear, params.timeOfDay);
+            document.getElementById('moonrise-time').textContent = formatTime(moonriseMoonset.moonrise);
+            document.getElementById('moonset-time').textContent = formatTime(moonriseMoonset.moonset);
+        }
+        
+        // 更新天体信息面板的显示状态
+        function updateCelestialInfoVisibility() {
+            const infoPanel = document.querySelector('.info-panel');
+            if (infoPanel) {
+                infoPanel.style.display = params.showCelestialInfo ? 'block' : 'none';
+            }
+        }
+        
+        function getDateFromDayOfYear(day) {
+            const festivals = {
+                'springEquinox': 80,
+                'summerSolstice': 173,
+                'autumnEquinox': 266,
+                'winterSolstice': 356
+            };
+            
+            for (const [festival, dayNum] of Object.entries(festivals)) {
+                if (day === dayNum) {
+                    switch(festival) {
+                        case 'springEquinox': return '春分 (3月21日)';
+                        case 'summerSolstice': return '夏至 (6月22日)';
+                        case 'autumnEquinox': return '秋分 (9月23日)';
+                        case 'winterSolstice': return '冬至 (12月22日)';
+                    }
+                }
+            }
+            
+            return getDateStringFromDayOfYear(day);
+        }
+        
+        function formatTime(hours) {
+            const hour = Math.floor(hours);
+            const minute = Math.floor((hours - hour) * 60);
+            return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        }
+        
+        function setupViewControls() {
+            document.getElementById('top-view').addEventListener('click', () => {
+                camera.position.set(0, 15, 0.1);
+                camera.lookAt(0, 0, 0);
+            });
+            
+            document.getElementById('side-view').addEventListener('click', () => {
+                camera.position.set(15, 5, 0);
+                camera.lookAt(0, 0, 0);
+            });
+            
+            document.getElementById('north-view').addEventListener('click', () => {
+                camera.position.set(0, 8, 15);
+                camera.lookAt(0, 0, 0);
+            });
+            
+            document.getElementById('reset-view').addEventListener('click', () => {
+                camera.position.set(12, 8, 12);
+                camera.lookAt(0, 0, 0);
+            });
+            
+            document.getElementById('toggle-moon').addEventListener('click', function() {
+                params.showMoon = !params.showMoon;
+                updateDisplay();
+                updateMoonPosition();
+            });
+            
+            document.getElementById('toggle-moon-phase-3d').addEventListener('click', function() {
+                params.showMoonPhase3D = !params.showMoonPhase3D;
+                updateDisplay();
+                updateMoonPhase3D();
+            });
+
+            // 显示/隐藏天体位置信息
+            document.getElementById('toggle-celestial-info').addEventListener('click', function() {
+                params.showCelestialInfo = !params.showCelestialInfo;
+                updateDisplay();
+                updateCelestialInfoVisibility();
+            });
+        }
+        
+        // 播放控制相关函数
+        function initPlaybackControls() {
+            const playBtn = document.getElementById('play-btn');
+            const pauseBtn = document.getElementById('pause-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const speedBtns = document.querySelectorAll('.speed-btn');
+            
+            // 播放按钮
+            playBtn.addEventListener('click', function() {
+                if (!isPlaying) {
+                    startPlayback();
+                    playBtn.classList.add('active');
+                    pauseBtn.classList.remove('active');
+                }
+            });
+            
+            // 暂停按钮
+            pauseBtn.addEventListener('click', function() {
+                if (isPlaying) {
+                    stopPlayback();
+                    pauseBtn.classList.add('active');
+                    playBtn.classList.remove('active');
+                }
+            });
+            
+            // 重置按钮
+            resetBtn.addEventListener('click', function() {
+                resetPlayback();
+                playBtn.classList.remove('active');
+                pauseBtn.classList.remove('active');
+            });
+            
+            // 速度控制按钮
+            speedBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const speed = parseFloat(this.getAttribute('data-speed'));
+                    
+                    // 特殊处理真实时间按钮
+                    if (speed === 0.0027778) {
+                        setCurrentDateTime(); // 设置为当前系统时间
+                        startPlayback(); // 自动开始播放
+                        
+                        // 更新播放按钮状态
+                        playBtn.classList.add('active');
+                        pauseBtn.classList.remove('active');
+                    }
+                    
+                    setPlaybackSpeed(speed);
+                    
+                    // 更新活动状态
+                    speedBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+            
+            // 初始化时暂停按钮为活动状态
+            pauseBtn.classList.add('active');
+        }
+        
+        function startPlayback() {
+            if (!isPlaying) {
+                isPlaying = true;
+                lastUpdateTime = Date.now();
+                animationId = requestAnimationFrame(updatePlayback);
+                console.log('开始播放');
+            }
+        }
+        
+        function stopPlayback() {
+            if (isPlaying) {
+                isPlaying = false;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+                console.log('暂停播放');
+            }
+        }
+        
+        function resetPlayback() {
+            stopPlayback();
+            
+            // 重置到初始状态
+            params.timeOfDay = 6;
+            params.dayOfYear = 80;
+            params.moonPhase = 7.4;
+            
+            // 更新滑块
+            document.getElementById('timeOfDay').value = params.timeOfDay;
+            document.getElementById('dayOfYear').value = params.dayOfYear;
+            document.getElementById('moonPhase').value = params.moonPhase;
+            
+            // 更新显示
+            updateDisplay();
+            updateSunPosition();
+            updateMoonPosition();
+            updateEarthAxisAndPoles();
+            
+            console.log('重置播放');
+        }
+        
+        function setPlaybackSpeed(speed) {
+            playSpeed = speed;
+            console.log(`播放速度设置为: ${speed}x`);
+        }
+        
+        function updatePlayback() {
+            if (!isPlaying) return;
+            
+            const now = Date.now();
+            const deltaTime = now - lastUpdateTime;
+            lastUpdateTime = now;
+            
+            // 计算时间增量（考虑播放速度）
+            // 1小时实时时间对应模拟器中24小时（一天）
+            // 使用播放速度倍数
+            const timeIncrement = (deltaTime / 1000) * playSpeed * 0.1; // 调整这个值可以改变播放速度
+            
+            // 更新时间
+            params.timeOfDay += timeIncrement;
+            
+            // 如果时间超过24小时，增加日期并重置时间
+            if (params.timeOfDay >= 24) {
+                params.timeOfDay = params.timeOfDay % 24;
+                params.dayOfYear += 1;
+                
+                // 如果日期超过365天，重置到第1天
+                if (params.dayOfYear > 365) {
+                    params.dayOfYear = 1;
+                }
+            }
+            
+            // 更新时间滑块
+            document.getElementById('timeOfDay').value = params.timeOfDay;
+            
+            // 更新日期滑块
+            document.getElementById('dayOfYear').value = params.dayOfYear;
+            
+            // 更新月相（月相也会随时间变化）
+            // 月相周期约为29.53天，每天变化约0.0338
+            params.moonPhase += timeIncrement / 24 * 0.0338 * 29.53;
+            
+            // 如果月相超过29.53天，重置
+            if (params.moonPhase >= 29.53) {
+                params.moonPhase = params.moonPhase % 29.53;
+            }
+            
+            // 更新月相滑块
+            document.getElementById('moonPhase').value = params.moonPhase;
+            
+            // 更新显示
+            updateDisplay();
+            updateSunPosition();
+            updateMoonPosition();
+            updateEarthAxisAndPoles();
+            
+            // 继续下一帧
+            animationId = requestAnimationFrame(updatePlayback);
+        }
+        
+        function onWindowResize() {
+            const container = document.getElementById('threejs-canvas');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (controls) {
+                controls.update();
+            }
+            
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        function animateMoonPhase() {
+            requestAnimationFrame(animateMoonPhase);
+            
+            // 让月球缓慢自转（模拟真实月球的同步自转）
+            if (darkSide) {
+                darkSide.rotation.y += 0.002;
+            }
+            if (illuminatedSide) {
+                illuminatedSide.rotation.y += 0.002;
+            }
+            
+            if (moonPhaseRenderer && moonPhaseScene && moonPhaseCamera) {
+                moonPhaseRenderer.render(moonPhaseScene, moonPhaseCamera);
+            }
+        }
+        
+        // 预设函数
+        window.setPreset = function(location) {
+            switch(location) {
+                case 'equator':
+                    params.latitude = 0;
+                    break;
+                case 'beijing':
+                    params.latitude = 40;
+                    break;
+                case 'sydney':
+                    params.latitude = -34;
+                    break;
+            }
+            
+            document.getElementById('latitude').value = params.latitude;
+            updateDisplay();
+            updateEarthAxisAndPoles();
+            updateSunPosition();
+            updateMoonPosition();
+        };
+        
+        window.setMoonPhase = function(phase) {
+            params.moonPhase = phase;
+            document.getElementById('moonPhase').value = phase;
+            updateDisplay();
+            updateMoonPosition();
+        };
+        
+        function initUI() {
+            updateDisplay();
+            updateMoonPhase3D();
+            
+            // 设置滑块的值
+            document.getElementById('timeOfDay').value = params.timeOfDay;
+            document.getElementById('dayOfYear').value = params.dayOfYear;
+            document.getElementById('moonPhase').value = params.moonPhase;
+            
+            // 显示自动设置信息
+            const now = new Date();
+            const autoSetInfo = document.getElementById('autoSetInfo');
+            autoSetInfo.innerHTML = `
+                <i class="fas fa-sync-alt"></i> 已自动设置为: ${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${formatTime(params.timeOfDay)}
+            `;
+        }
+        
+        function initEventListeners() {
+            // 纬度滑块
+            document.getElementById('latitude').addEventListener('input', function() {
+                params.latitude = parseFloat(this.value);
+                updateDisplay();
+                updateEarthAxisAndPoles();
+                updateSunPosition();
+                updateMoonPosition();
+            });
+            
+            // 日期滑块
+            document.getElementById('dayOfYear').addEventListener('input', function() {
+                params.dayOfYear = parseInt(this.value);
+                updateDisplay();
+                updateSunPosition();
+                updateMoonPosition();
+            });
+            
+            // 时间滑块
+            document.getElementById('timeOfDay').addEventListener('input', function() {
+                params.timeOfDay = parseFloat(this.value);
+                updateDisplay();
+                updateSunPosition();
+                updateMoonPosition();
+            });
+            
+            // 月相滑块
+            document.getElementById('moonPhase').addEventListener('input', function() {
+                params.moonPhase = parseFloat(this.value);
+                updateDisplay();
+                updateMoonPosition();
+            });
+            
+            // 月球轨道倾角滑块
+            document.getElementById('moonOrbitInclination').addEventListener('input', function() {
+                params.moonOrbitInclination = parseFloat(this.value);
+                updateDisplay();
+                updateMoonPosition();
+            });
+            
+            // 天球显示开关
+            document.getElementById('showCelestialSphere').addEventListener('change', function() {
+                params.showCelestialSphere = this.checked;
+                if (celestialSphere) {
+                    celestialSphere.visible = params.showCelestialSphere;
+                }
+            });
+            
+            // 重试按钮
+            document.getElementById('retry-btn').addEventListener('click', function() {
+                location.reload();
+            });
+        }
+        
+        function showError(message) {
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('error-message').innerHTML = 
+                `<h3><i class="fas fa-exclamation-triangle"></i> 错误</h3>
+                 <p>${message}</p>
+                 <button id="retry-btn" style="margin-top: 10px; padding: 8px 15px; background-color: white; color: red; border: none; border-radius: 5px; cursor: pointer;">重试</button>`;
+            
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', function() {
+            console.log('页面加载完成');
+            setTimeout(init, 100);
+        });
+    </script>
+</body>
+</html>
