@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地质学基础：岩石与矿物图鉴</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #e67e22;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav button {
+            background: none;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: var(--primary-color);
+            font-weight: bold;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        nav button:hover {
+            background-color: #f9f9f9;
+        }
+
+        nav button.active {
+            border-bottom: 3px solid var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .section-title {
+            border-left: 5px solid var(--accent-color);
+            padding-left: 1rem;
+            margin: 2rem 0 1rem;
+            color: var(--primary-color);
+        }
+
+        .category-desc {
+            background: #e8f4f8;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.15);
+        }
+
+        .card-img-container {
+            height: 200px;
+            overflow: hidden;
+            background-color: #ddd;
+        }
+
+        .card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .card:hover img {
+            transform: scale(1.1);
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            margin: 0 0 0.5rem;
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .card-text {
+            font-size: 0.95rem;
+            color: #555;
+            margin-bottom: 1rem;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #ecf0f1;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-right: 5px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            background: var(--primary-color);
+            color: white;
+            margin-top: 3rem;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8rem; }
+            nav button { padding: 0.8rem 1rem; font-size: 0.9rem; }
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>地质学基础图鉴</h1>
+    <p>主要岩石与矿物分类详解</p>
+</header>
+
+<nav>
+    <button class="tab-btn active" onclick="showSection('rocks')">岩石分类 (Rocks)</button>
+    <button class="tab-btn" onclick="showSection('minerals')">矿物分类 (Minerals)</button>
+    <button class="tab-btn" onclick="showSection('landforms')">地貌观察 (Landforms)</button>
+</nav>
+
+<div class="container">
+
+    <!-- 岩石部分 -->
+    <div id="rocks-section">
+        <h2 class="section-title">一、岩浆岩 (Igneous Rocks)</h2>
+        <div class="category-desc">
+            <strong>形成过程</strong>：岩浆（地下熔融硅酸盐）冷却凝固形成。<br>
+            <strong>形成条件差异</strong>：<br>
+            • <strong>侵入岩 vs 喷出岩</strong>：侵入岩在地下3-10km深处缓慢冷却（10⁴-10⁶年），形成粗粒结构；喷出岩在地表快速冷却（数小时至数年），形成细粒或玻璃质结构。<br>
+            • <strong>酸性岩（花岗岩、流纹岩）</strong>：SiO₂含量>65%，形成于大陆地壳，岩浆温度较低（650-800℃），粘度高。<br>
+            • <strong>中性岩（安山岩、英安岩、闪长岩）</strong>：SiO₂含量52-65%，形成于火山弧和大陆边缘，岩浆温度中等（800-1000℃）。<br>
+            • <strong>基性岩（玄武岩、辉长岩）</strong>：SiO₂含量45-52%，形成于洋壳和大陆裂谷，岩浆温度较高（1000-1200℃），粘度低。<br>
+            • <strong>超基性岩（橄榄岩）</strong>：SiO₂含量<45%，形成于上地幔，岩浆温度极高（1200-1400℃）。<br>
+            <strong>判别依据</strong>：矿物组成、结构（结晶程度）、构造（气孔、流纹）、SiO₂含量。<br>
+            <strong>找矿条件</strong>：岩浆岩是金属矿产（如铜、钼、钨）和稀有金属（如铌、钽）的主要载体。
+        </div>
+        <div class="grid">
+            <!-- 花岗岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/granite-coarse-grained.jpg" alt="花岗岩" onerror="this.src='https://images.unsplash.com/photo-1576769273997-13b5c5e7e7c2?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">酸性侵入岩</span>
+                    <h3 class="card-title">花岗岩 (Granite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英（20-60%）、钾长石（30-60%，呈肉红色）、斜长石（0-30%）、云母（3-10%）。<br><strong>特征</strong>：地壳中最常见的侵入岩，具有典型的等粒结构。<br><strong>形成条件</strong>：地下3-10km深处缓慢冷却（10⁴-10⁶年），岩浆温度650-800℃。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">侵入岩</span><span class="tag">酸性</span>
+                </div>
+            </div>
+            <!-- 玄武岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/basalt.jpg" alt="玄武岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">基性喷出岩</span>
+                    <h3 class="card-title">玄武岩 (Basalt)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：斜长石（45-55%）、辉石（40-50%）、橄榄石（0-15%）。<br><strong>特征</strong>：洋壳的主要成分，黑色或暗绿色，细粒结构，常具气孔构造。<br><strong>形成条件</strong>：地表快速冷却（数小时至数年），岩浆温度1000-1200℃，形成于洋壳和大陆裂谷。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">喷出岩</span><span class="tag">基性</span>
+                </div>
+            </div>
+            <!-- 闪长岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/quartz-diorite.jpg" alt="闪长岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">中性侵入岩</span>
+                    <h3 class="card-title">闪长岩 (Diorite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：中性斜长石（50-70%）、角闪石（20-40%）、黑云母（5-15%）、石英（0-10%）。<br><strong>特征</strong>：颜色介于花岗岩和辉长岩之间，呈灰黑色。<br><strong>形成条件</strong>：地下3-10km深处缓慢冷却，岩浆温度800-1000℃，形成于火山弧和大陆边缘。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">侵入岩</span><span class="tag">中性</span>
+                </div>
+            </div>
+            <!-- 橄榄岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/peridotite.jpg" alt="橄榄岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">超基性侵入岩</span>
+                    <h3 class="card-title">橄榄岩 (Peridotite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：橄榄石（60-90%）、辉石（10-40%）、铬尖晶石（0-5%）。<br><strong>特征</strong>：上地幔的主要组成岩石，深绿色，几乎不含石英和长石。<br><strong>形成条件</strong>：地下深处缓慢冷却，岩浆温度1200-1400℃，形成于上地幔。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">侵入岩</span><span class="tag">超基性</span>
+                </div>
+            </div>
+            <!-- 英安岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/dacite.jpg" alt="英安岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">中性喷出岩</span>
+                    <h3 class="card-title">英安岩 (Dacite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：斜长石（50-70%）、石英（20-40%）、黑云母（5-15%）、角闪石（0-10%）。<br><strong>特征</strong>：浅色喷出岩，介于流纹岩和安山岩之间。<br><strong>形成条件</strong>：地表快速冷却，岩浆温度800-1000℃，形成于火山弧地区。<br>上面显示的标本直径约为四英寸（十厘米）。</p>
+                    <span class="tag">喷出岩</span><span class="tag">中性</span>
+                </div>
+            </div>
+            <!-- 辉绿岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/diabase.jpg" alt="辉绿岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">基性侵入岩</span>
+                    <h3 class="card-title">辉绿岩 (Diabase)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：斜长石（45-55%）、辉石（40-50%）、橄榄石（0-10%）。<br><strong>特征</strong>：细粒基性侵入岩，著名的英国巨石阵就是由辉绿岩建造的。<br><strong>形成条件</strong>：地下浅部快速冷却，岩浆温度1000-1200℃，形成于岩脉或岩床。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">侵入岩</span><span class="tag">基性</span>
+                </div>
+            </div>
+            <!-- 暗色岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/articles/trap-rock/trap-rock.jpg" alt="暗色岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">基性喷出岩</span>
+                    <h3 class="card-title">暗色岩 (Trap Rock)</h3>
+                    <p class="card-text">用于生产碎石和建筑材料的深色火成岩统称。包括玄武岩、辉绿岩等。</p>
+                    <span class="tag">喷出岩</span><span class="tag">建筑</span>
+                </div>
+            </div>
+            <!-- 安山岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/andesite.jpg" alt="安山岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">中性喷出岩</span>
+                    <h3 class="card-title">安山岩 (Andesite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：斜长石（50-70%）、辉石（15-30%）、角闪石（5-15%）、黑云母（0-10%）。<br><strong>特征</strong>：细粒喷出岩，主要成分是斜长石，常见于火山弧地区。<br><strong>形成条件</strong>：地表快速冷却，岩浆温度800-1000℃，形成于火山弧和大陆边缘。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">喷出岩</span><span class="tag">中性</span>
+                </div>
+            </div>
+            <!-- 流纹岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/rhyolite.jpg" alt="流纹岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">酸性喷出岩</span>
+                    <h3 class="card-title">流纹岩 (Rhyolite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英（20-40%）、碱性长石（40-60%）、斜长石（0-20%）。<br><strong>特征</strong>：浅色细粒喷出岩，常含流纹构造，是花岗岩的喷出对应物。<br><strong>形成条件</strong>：地表极快速冷却，岩浆温度650-800℃，形成于大陆地壳火山。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">喷出岩</span><span class="tag">酸性</span>
+                </div>
+            </div>
+            <!-- 黑曜岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/obsidian.jpg" alt="黑曜岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">火山玻璃</span>
+                    <h3 class="card-title">黑曜岩 (Obsidian)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：非晶质玻璃（主要为SiO₂）。<br><strong>特征</strong>：深色火山玻璃，由熔岩极快速冷却形成，贝壳状断口，锋利边缘。<br><strong>形成条件</strong>：地表极快速冷却（数分钟至数小时），岩浆温度650-800℃，形成于酸性熔岩流。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">火山玻璃</span><span class="tag">锋利</span>
+                </div>
+            </div>
+            <!-- 浮石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/pumice.jpg" alt="浮石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">火山玻璃</span>
+                    <h3 class="card-title">浮石 (Pumice)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：多孔玻璃（主要为SiO₂）。<br><strong>特征</strong>：浅色多孔火山岩，密度极低可浮于水面，由气体逸出形成。<br><strong>形成条件</strong>：地表极快速冷却，岩浆温度650-800℃，气体大量逸出形成多孔结构。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">多孔</span><span class="tag">浮于水</span>
+                </div>
+            </div>
+            <!-- 火山渣 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/scoria.jpg" alt="火山渣" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">火山碎屑岩</span>
+                    <h3 class="card-title">火山渣 (Scoria)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：多孔玻璃质（主要为斜长石和辉石）。<br><strong>特征</strong>：深色多孔火山岩，常呈熔岩流顶部或火山喷发物，密度较大。<br><strong>形成条件</strong>：地表快速冷却，岩浆温度1000-1200℃，气体逸出形成多孔结构。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">多孔</span><span class="tag">深色</span>
+                </div>
+            </div>
+            <!-- 凝灰岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/welded-tuff.jpg" alt="凝灰岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">火山碎屑岩</span>
+                    <h3 class="card-title">凝灰岩 (Tuff)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：火山灰、火山玻璃、晶体碎片。<br><strong>特征</strong>：由火山灰沉积固结形成，质地疏松，常见于火山地区。<br><strong>形成条件</strong>：火山喷发后火山灰在空气中或水中沉积固结，形成于火山口附近。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">火山灰</span><span class="tag">沉积</span>
+                </div>
+            </div>
+            <!-- 伟晶岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/pegmatite.jpg" alt="伟晶岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">侵入岩</span>
+                    <h3 class="card-title">伟晶岩 (Pegmatite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英、长石、云母等，晶体极大（可达数米）。<br><strong>特征</strong>：极粗粒侵入岩，形成于岩浆房边缘，常含稀有矿物。<br><strong>形成条件</strong>：岩浆房边缘缓慢冷却，岩浆温度650-800℃，富含挥发分促进晶体生长。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">侵入岩</span><span class="tag">粗粒</span>
+                </div>
+            </div>
+            <!-- 辉长岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/gabbro.jpg" alt="辉长岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">基性侵入岩</span>
+                    <h3 class="card-title">辉长岩 (Gabbro)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：斜长石（45-55%）、辉石（40-50%）、橄榄石（0-10%）。<br><strong>特征</strong>：粗粒深色侵入岩，是玄武岩的侵入对应物。<br><strong>形成条件</strong>：地下3-10km深处缓慢冷却，岩浆温度1000-1200℃，形成于洋壳和大陆裂谷。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">侵入岩</span><span class="tag">基性</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">二、沉积岩 (Sedimentary Rocks)</h2>
+        <div class="category-desc">
+            <strong>形成过程</strong>：风化产物、生物遗骸或化学沉淀物经搬运、沉积、成岩作用形成。<br>
+            <strong>形成环境差异</strong>：<br>
+            • <strong>海相沉积</strong>：在海洋环境中形成，包括浅海（砂岩、石灰岩）、深海（硅藻土、铁矿石）。特征：层理发育，含海相化石，横向延伸稳定。<br>
+            • <strong>湖相沉积</strong>：在湖泊环境中形成，包括粉砂岩、页岩、煤。特征：层理清晰，含淡水化石，粒度较细。<br>
+            • <strong>河流相沉积</strong>：在河流环境中形成，包括砾岩、砂岩。特征：粒度变化大，磨圆度高，含交错层理。<br>
+            • <strong>风力沉积</strong>：在沙漠或干旱地区由风力搬运形成，包括风成砂岩、黄土。特征：分选性极好，磨圆度高，大型交错层理。<br>
+            • <strong>冰川沉积</strong>：由冰川搬运和沉积形成，包括冰碛岩。特征：分选性差，含巨大漂砾，无层理。<br>
+            <strong>形成条件</strong>：地表常温常压下，沉积物在湖泊、海洋、河流等环境中堆积（成岩时间10³-10⁷年）。<br>
+            <strong>判别依据</strong>：层理构造、化石、沉积结构（粒度、分选性、磨圆度）、沉积构造（波痕、泥裂）。<br>
+            <strong>找矿条件</strong>：沉积岩是能源矿产（煤、石油、天然气）和沉积型金属矿产（铝土矿、锰矿）的主要载体。
+        </div>
+        <div class="grid">
+            <!-- 砂岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/sandstone.jpg" alt="砂岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碎屑岩</span>
+                    <h3 class="card-title">砂岩 (Sandstone)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英（60-90%）、长石（5-20%）、岩屑（5-20%）。<br><strong>特征</strong>：由直径0.0625-2mm的沙粒胶结而成，手感粗糙，常有明显的层理。<br><strong>沉积环境</strong>：河流、浅海、风力沉积，常见于三角洲和海岸带。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碎屑岩</span><span class="tag">陆源</span>
+                </div>
+            </div>
+            <!-- 石灰岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/limestone.jpg" alt="石灰岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">化学/生物化学岩</span>
+                    <h3 class="card-title">石灰岩 (Limestone)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：方解石（90-100%）、白云石（0-10%）、粘土矿物（0-5%）。<br><strong>特征</strong>：主要成分为方解石（CaCO₃），遇稀盐酸剧烈起泡，常含有生物化石。<br><strong>沉积环境</strong>：浅海、深海、湖泊沉积，由生物遗骸或化学沉淀形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碳酸盐岩</span><span class="tag">海相</span>
+                </div>
+            </div>
+            <!-- 页岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/shale.jpg" alt="页岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">粘土岩</span>
+                    <h3 class="card-title">页岩 (Shale)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：粘土矿物（伊利石、高岭石、蒙脱石等，占60-90%）、石英（5-20%）、长石（5-15%）。<br><strong>特征</strong>：由极细的粘土矿物压实而成，具有显著的页理构造，是重要的烃源岩。<br><strong>沉积环境</strong>：湖泊、浅海、深海沉积，常见于静水环境。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">泥质岩</span><span class="tag">细粒</span>
+                </div>
+            </div>
+            <!-- 砾岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/conglomerate.jpg" alt="砾岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碎屑岩</span>
+                    <h3 class="card-title">砾岩 (Conglomerate)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：砾石成分多样（石英岩、花岗岩、石灰岩等）、胶结物（硅质、钙质、铁质）。<br><strong>特征</strong>：由直径大于2mm的圆形砾石胶结而成，代表高能量的沉积环境。<br><strong>沉积环境</strong>：河流、山麓冲积扇沉积，常见于高能水流环境。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碎屑岩</span><span class="tag">粗粒</span>
+                </div>
+            </div>
+            <!-- 粉砂岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/siltstone.jpg" alt="粉砂岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碎屑岩</span>
+                    <h3 class="card-title">粉砂岩 (Siltstone)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英（50-70%）、粘土矿物（20-40%）、长石（5-20%）。<br><strong>特征</strong>：由粉砂级颗粒（0.004-0.0625mm）沉积而成，介于页岩和砂岩之间，质地细腻。<br><strong>沉积环境</strong>：湖泊、浅海、河流沉积，常见于低能水环境。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碎屑岩</span><span class="tag">细粒</span>
+                </div>
+            </div>
+            <!-- 白垩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/chalk.jpg" alt="白垩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">化学沉积岩</span>
+                    <h3 class="card-title">白垩 (Chalk)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：方解石（95-100%）、粘土矿物（0-5%）。<br><strong>特征</strong>：由微细的海洋生物遗骸（如颗石藻）形成的石灰岩，质地松软，遇酸起泡。<br><strong>沉积环境</strong>：深海沉积，由海洋生物遗骸堆积形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碳酸盐岩</span><span class="tag">生物</span>
+                </div>
+            </div>
+            <!-- 贝壳灰岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/coquina.jpg" alt="贝壳灰岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">生物沉积岩</span>
+                    <h3 class="card-title">贝壳灰岩 (Coquina)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：方解石（95-100%）、贝壳碎片（5-10%）。<br><strong>特征</strong>：几乎完全由贝壳和海洋生物碎片胶结而成的多孔石灰岩，常见于热带海岸。<br><strong>沉积环境</strong>：浅海、海岸沉积，由海洋生物遗骸堆积形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碳酸盐岩</span><span class="tag">化石</span>
+                </div>
+            </div>
+            <!-- 角砾岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/breccia.jpg" alt="角砾岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碎屑岩</span>
+                    <h3 class="card-title">角砾岩 (Breccia)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：角砾成分多样（石英岩、花岗岩、石灰岩等）、胶结物（硅质、钙质、铁质）。<br><strong>特征</strong>：由直径大于2mm的棱角状碎屑胶结而成，代表近源快速堆积。<br><strong>沉积环境</strong>：山麓、断层带沉积，常见于近源快速堆积环境。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">碎屑岩</span><span class="tag">棱角状</span>
+                </div>
+            </div>
+            <!-- 燧石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/chert.jpg" alt="燧石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">化学沉积岩</span>
+                    <h3 class="card-title">燧石 (Chert)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：微晶石英（95-100%）。<br><strong>特征</strong>：微晶或隐晶质二氧化硅，贝壳状断口，边缘锋利。古代用于制作工具。<br><strong>沉积环境</strong>：深海、湖泊沉积，由化学沉淀或生物硅质遗骸形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">硅质岩</span><span class="tag">锋利</span>
+                </div>
+            </div>
+            <!-- 煤 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/coal.jpg" alt="煤" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">有机沉积岩</span>
+                    <h3 class="card-title">煤 (Coal)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：碳（60-95%）、氢（3-6%）、氧（10-30%）。<br><strong>特征</strong>：由植物遗骸在沼泽环境中堆积变质形成，可燃，是重要的能源矿产。<br><strong>沉积环境</strong>：沼泽、湖泊沉积，由植物遗骸在还原环境中堆积形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">有机岩</span><span class="tag">能源</span>
+                </div>
+            </div>
+            <!-- 硅藻土 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/diatomite.jpg" alt="硅藻土" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">生物沉积岩</span>
+                    <h3 class="card-title">硅藻土 (Diatomite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：蛋白石（SiO₂·nH₂O，80-95%）。<br><strong>特征</strong>：由硅藻遗骸形成，轻质多孔，用作过滤材料、吸附剂和研磨剂。<br><strong>沉积环境</strong>：湖泊、海洋沉积，由硅藻遗骸堆积形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">硅质岩</span><span class="tag">生物</span>
+                </div>
+            </div>
+            <!-- 白云岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/dolomite.jpg" alt="白云岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">化学沉积岩</span>
+                    <h3 class="card-title">白云岩 (Dolomite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：白云石（90-100%）、方解石（0-10%）。<br><strong>特征</strong>：主要由白云石组成，遇冷盐酸不起泡，遇热盐酸缓慢起泡。<br><strong>沉积环境</strong>：浅海、潟湖沉积，由石灰岩白云石化或化学沉淀形成。<br>上面显示的标本直径约为四英寸（十厘米）。</p>
+                    <span class="tag">碳酸盐岩</span><span class="tag">白云石</span>
+                </div>
+            </div>
+            <!-- 铁矿石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/hematite.jpg" alt="铁矿石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">化学沉积岩</span>
+                    <h3 class="card-title">铁矿石 (Iron Ore)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：赤铁矿（Fe₂O₃）、磁铁矿（Fe₃O₄）、针铁矿（FeO(OH)）。<br><strong>特征</strong>：由铁和氧在溶液中结合沉积形成，是钢铁工业的主要原料。图为赤铁矿。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">金属矿产</span><span class="tag">铁</span>
+                </div>
+            </div>
+            <!-- 岩盐 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/rock-salt.jpg" alt="岩盐" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">化学沉积岩</span>
+                    <h3 class="card-title">岩盐 (Rock Salt)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石盐（NaCl，95-100%）。<br><strong>特征</strong>：由海水或咸水蒸发沉积形成，立方体晶体，易溶于水，用于食盐和化工原料。<br><strong>沉积环境</strong>：潟湖、内陆盐湖沉积，由海水或咸水蒸发形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">蒸发岩</span><span class="tag">可溶</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">三、变质岩 (Metamorphic Rocks)</h2>
+        <div class="category-desc">
+            <strong>形成过程</strong>：原有岩石在温度（200-800℃）、压力（0.1-1.0GPa）或化学流体作用下发生重结晶、变形等变质作用形成。<br>
+            <strong>变质程度与温压条件差异</strong>：<br>
+            • <strong>低级变质（板岩、千枚岩）</strong>：温度200-400℃，压力0.1-0.3GPa。特征：矿物颗粒极细，片理发育，原岩结构保留较好。<br>
+            • <strong>中级变质（片岩、大理岩、石英岩）</strong>：温度400-600℃，压力0.3-0.6GPa。特征：矿物颗粒变粗，片理明显，出现变质矿物（如石榴石、蓝晶石）。<br>
+            • <strong>高级变质（片麻岩、角闪岩）</strong>：温度600-800℃，压力0.6-1.0GPa。特征：矿物粗大，片麻状构造，部分熔融。<br>
+            • <strong>接触变质（角岩、矽卡岩）</strong>：温度400-800℃，压力低（<0.1GPa）。特征：围绕岩浆体形成，温度梯度大，无定向压力。<br>
+            • <strong>动力变质</strong>：温度较低（<400℃），压力高且具方向性。特征：沿断裂带分布，形成糜棱岩。<br>
+            <strong>形成条件</strong>：区域变质（造山带，规模大）、接触变质（岩浆侵入接触带，规模小）、动力变质（断裂带）。<br>
+            <strong>判别依据</strong>：片理构造（片麻状、片状、板状）、变质矿物（红柱石、蓝晶石）、变余结构。<br>
+            <strong>找矿条件</strong>：变质岩是变质型金属矿产（金、银、铜）和非金属矿产（石墨、滑石、石棉）的重要载体。
+        </div>
+        <div class="grid">
+            <!-- 大理岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/marble.jpg" alt="大理岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">热/区域变质岩</span>
+                    <h3 class="card-title">大理岩 (Marble)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：方解石（95-100%）、白云石（0-5%）。<br><strong>特征</strong>：由石灰岩或白云岩变质而来，主要成分重结晶为方解石，晶粒粗大，花纹美丽，遇酸起泡。<br><strong>变质条件</strong>：中级变质，温度400-600℃，压力0.3-0.6GPa，区域或接触变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">非片理</span><span class="tag">碳酸盐质</span>
+                </div>
+            </div>
+            <!-- 片麻岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/gneiss.jpg" alt="片麻岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">高级区域变质岩</span>
+                    <h3 class="card-title">片麻岩 (Gneiss)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英（20-40%）、长石（40-60%）、云母（10-30%）、石榴石（0-10%）。<br><strong>特征</strong>：变质程度深，具有明显的片麻状构造（深浅色矿物相间排列的条带）。<br><strong>变质条件</strong>：高级变质，温度600-800℃，压力0.6-1.0GPa，区域变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">片理构造</span><span class="tag">高级变质</span>
+                </div>
+            </div>
+            <!-- 板岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/slate.jpg" alt="板岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">低级区域变质岩</span>
+                    <h3 class="card-title">板岩 (Slate)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：粘土矿物（伊利石、绿泥石等，占80-95%）、石英（5-15%）。<br><strong>特征</strong>：由页岩变质而来，变质程度低，颗粒极细，具有板状构造，易裂成平整薄板。<br><strong>变质条件</strong>：低级变质，温度200-400℃，压力0.1-0.3GPa，区域变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">片理构造</span><span class="tag">低级变质</span>
+                </div>
+            </div>
+            <!-- 片岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/muscovite-schist.jpg" alt="片岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">中级区域变质岩</span>
+                    <h3 class="card-title">片岩 (Schist)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：云母（20-60%）、石英（10-30%）、长石（5-20%）、绿泥石（5-15%）。<br><strong>特征</strong>：变质程度中等，具有片状构造，富含片状矿物，肉眼可见矿物晶体。<br><strong>变质条件</strong>：中级变质，温度400-600℃，压力0.3-0.6GPa，区域变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">片理构造</span><span class="tag">中级变质</span>
+                </div>
+            </div>
+            <!-- 石英岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/quartzite.jpg" alt="石英岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">非片状变质岩</span>
+                    <h3 class="card-title">石英岩 (Quartzite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石英（90-100%）、长石（0-5%）、云母（0-5%）。<br><strong>特征</strong>：由砂岩变质而来，几乎完全由石英组成，硬度极高（可达7-8）。<br><strong>变质条件</strong>：中级变质，温度400-600℃，压力0.3-0.6GPa，区域或接触变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">非片理</span><span class="tag">高硬度</span>
+                </div>
+            </div>
+            <!-- 皂石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/talc/talc-soapstone-79.jpg" alt="皂石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">接触变质岩</span>
+                    <h3 class="card-title">皂石 (Soapstone)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：滑石（60-90%）、绿泥石（5-20%）、方解石（0-10%）。<br><strong>特征</strong>：富含滑石的变质岩，质地柔软，易于雕刻。<br><strong>变质条件</strong>：接触变质，温度400-800℃，压力低（<0.1GPa），由超基性岩热液蚀变形成。</p>
+                    <span class="tag">软质</span><span class="tag">雕刻</span>
+                </div>
+            </div>
+            <!-- 紫翠石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/charoitite-rough.jpg" alt="紫翠石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">区域变质岩</span>
+                    <h3 class="card-title">紫翠石 (Charoitite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：紫翠石（60-80%）、长石（10-20%）、云母（5-15%）。<br><strong>特征</strong>：紫色变质岩，主要由紫翠石矿物组成，仅产于俄罗斯西伯利亚。</p>
+                    <span class="tag">紫色</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 角闪岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/amphibolite.jpg" alt="角闪岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">区域变质岩</span>
+                    <h3 class="card-title">角闪岩 (Amphibolite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：角闪石（50-70%）、斜长石（30-50%）、石榴石（0-10%）。<br><strong>特征</strong>：非片状变质岩，由基性岩变质形成，主要由角闪石和斜长石组成。<br><strong>变质条件</strong>：高级变质，温度600-800℃，压力0.6-1.0GPa，区域变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">非片理</span><span class="tag">基性变质</span>
+                </div>
+            </div>
+            <!-- 无烟煤 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/coal-anthracite-380.jpg" alt="无烟煤" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">变质岩</span>
+                    <h3 class="card-title">无烟煤 (Anthracite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：碳（90-95%）、氢（2-4%）、氧（2-4%）。<br><strong>特征</strong>：最高级别的煤，经高温高压变质形成，光泽明亮，燃烧时无烟。<br><strong>变质条件</strong>：高级变质，温度200-400℃，压力0.1-0.3GPa，区域变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">能源</span><span class="tag">高级变质</span>
+                </div>
+            </div>
+            <!-- 角岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/hornfels.jpg" alt="角岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">接触变质岩</span>
+                    <h3 class="card-title">角岩 (Hornfels)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：细粒矿物集合体（成分多样）。<br><strong>特征</strong>：细粒非片状变质岩，由接触变质作用形成，岩石被"烘烤"而成。<br><strong>变质条件</strong>：接触变质，温度400-800℃，压力低（<0.1GPa），围绕岩浆体形成。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">非片理</span><span class="tag">接触变质</span>
+                </div>
+            </div>
+            <!-- 青金石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/gemstones/lapis-lazuli/lapis-spheres-and-rough.jpg" alt="青金石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">区域变质岩</span>
+                    <h3 class="card-title">青金石 (Lapis Lazuli)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：青金石（30-40%）、方解石（20-30%）、黄铁矿（5-10%）。<br><strong>特征</strong>：深蓝色变质岩，著名的宝石材料，历史上用于颜料和装饰。<br><strong>变质条件</strong>：中级变质，温度400-600℃，压力0.3-0.6GPa，区域变质。<br>上面显示的青金石珠子直径约为9/16英寸（14毫米）。</p>
+                    <span class="tag">宝石</span><span class="tag">深蓝色</span>
+                </div>
+            </div>
+            <!-- 燧石岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/quartz-novaculite-505.jpg" alt="燧石岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">非片状变质岩</span>
+                    <h3 class="card-title">燧石岩 (Novaculite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：微晶石英（95-100%）。<br><strong>特征</strong>：致密坚硬的硅质岩石，贝壳状断口，用于制作磨石和工具。<br><strong>变质条件</strong>：中级变质，温度400-600℃，压力0.3-0.6GPa，区域变质。<br>上面显示的标本直径约为三英寸。</p>
+                    <span class="tag">非片理</span><span class="tag">硅质</span>
+                </div>
+            </div>
+            <!-- 千枚岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/phyllite.jpg" alt="千枚岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">区域变质岩</span>
+                    <h3 class="card-title">千枚岩 (Phyllite)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：绢云母（50-70%）、石英（20-40%）、绿泥石（5-15%）。<br><strong>特征</strong>：中级变质岩，表面常呈丝绢光泽，介于板岩和片岩之间。<br><strong>变质条件</strong>：低-中级变质，温度300-500℃，压力0.2-0.5GPa，区域变质。<br>上面显示的标本直径约为两英寸（五厘米）。</p>
+                    <span class="tag">片理构造</span><span class="tag">中级变质</span>
+                </div>
+            </div>
+            <!-- 矽卡岩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/skarn.jpg" alt="矽卡岩" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">接触变质岩</span>
+                    <h3 class="card-title">矽卡岩 (Skarn)</h3>
+                    <p class="card-text"><strong>矿物组成</strong>：石榴石（30-60%）、辉石（20-50%）、方解石（0-20%）。<br><strong>特征</strong>：由碳酸盐岩石接触变质形成，常含金属矿物，是重要的成矿岩石。</p>
+                    <span class="tag">非片理</span><span class="tag">成矿岩石</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 矿物部分 -->
+    <div id="minerals-section" class="hidden">
+        <h2 class="section-title">一、硅酸盐矿物 (Silicates)</h2>
+        <div class="category-desc">
+            地壳中含量最多（约90%）的矿物类别，基本结构单元是[SiO₄]四面体。是构成岩浆岩和变质岩的主要成分。
+        </div>
+        <div class="grid">
+            <!-- 石英 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/quartz-herkimers.jpg" alt="石英" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">架状硅酸盐</span>
+                    <h3 class="card-title">石英 (Quartz)</h3>
+                    <p class="card-text">化学式SiO₂。硬度7，无解理，贝壳状断口。油脂光泽，颜色多样（无色、紫、烟色等）。抗风化能力极强。</p>
+                    <span class="tag">造岩矿物</span><span class="tag">硬度7</span>
+                </div>
+            </div>
+            <!-- 长石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/feldspar/feldspar-cleavage.jpg" alt="长石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">架状硅酸盐</span>
+                    <h3 class="card-title">长石 (Feldspar)</h3>
+                    <p class="card-text">地壳中含量最高的矿物族。包括钾长石（肉红色）和斜长石（灰白色）。硬度6，有两组完全解理，通常以90度或接近90度相交。常呈玻璃光泽。</p>
+                    <span class="tag">造岩矿物</span><span class="tag">解理发育</span>
+                </div>
+            </div>
+            <!-- 云母 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/muscovite-471.jpg" alt="云母" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">层状硅酸盐</span>
+                    <h3 class="card-title">云母 (Mica)</h3>
+                    <p class="card-text">具有一组极完全解理，可剥成弹性薄片。常见的有白云母（无色透明）和黑云母（黑色）。<br>图为黑云母。</p>
+                    <span class="tag">片状</span><span class="tag">绝缘</span>
+                </div>
+            </div>
+            <!-- 橄榄石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/olivine-382.jpg" alt="橄榄石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">岛状硅酸盐</span>
+                    <h3 class="card-title">橄榄石 (Olivine)</h3>
+                    <p class="card-text">化学式(Mg,Fe)₂SiO₄。橄榄绿色，玻璃光泽。主要存在于超基性岩和基性岩中，易风化成蛇纹石。</p>
+                    <span class="tag">基性/超基性</span><span class="tag">宝石</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">二、其他重要造岩矿物</h2>
+        <div class="category-desc">
+            包括碳酸盐、氧化物、硫酸盐等，虽然在总量上少于硅酸盐，但在特定岩石（如沉积岩、矿石）中起决定性作用。
+        </div>
+        <div class="grid">
+            <!-- 方解石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/calcite-123.jpg" alt="方解石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碳酸盐</span>
+                    <h3 class="card-title">方解石 (Calcite)</h3>
+                    <p class="card-text">化学式CaCO₃。硬度3，三组完全解理（菱面体）。<strong>遇稀盐酸剧烈起泡</strong>。是石灰岩和大理岩的主要成分。</p>
+                    <span class="tag">碳酸盐</span><span class="tag">鉴定特征：起泡</span>
+                </div>
+            </div>
+            <!-- 赤铁矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/rocks/pictures/hematite-380.jpg" alt="赤铁矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">氧化物</span>
+                    <h3 class="card-title">赤铁矿 (Hematite)</h3>
+                    <p class="card-text">化学式Fe₂O₃。樱红色条痕是其鉴定关键。重要的铁矿石，也常作为沉积岩的红色胶结物。</p>
+                    <span class="tag">金属矿产</span><span class="tag">条痕：樱红</span>
+                </div>
+            </div>
+            <!-- 黄铁矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/pyrite-crystals.jpg" alt="黄铁矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硫化物</span>
+                    <h3 class="card-title">黄铁矿 (Pyrite)</h3>
+                    <p class="card-text">化学式FeS₂。浅铜黄色，金属光泽，常呈立方体晶形，条痕绿黑色。俗称“愚人金”。</p>
+                    <span class="tag">硫化物</span><span class="tag">立方体</span>
+                </div>
+            </div>
+            <!-- 石膏 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/gypsum-160.jpg" alt="石膏" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硫酸盐</span>
+                    <h3 class="card-title">石膏 (Gypsum)</h3>
+                    <p class="card-text">化学式CaSO₄·2H₂O。硬度2（指甲可划动），一组极完全解理。常用于制造水泥和雕塑。</p>
+                    <span class="tag">蒸发岩</span><span class="tag">硬度2</span>
+                </div>
+            </div>
+            <!-- 刚玉 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/corundum.jpg" alt="刚玉" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">氧化物</span>
+                    <h3 class="card-title">刚玉 (Corundum)</h3>
+                    <p class="card-text">化学式Al₂O₃。硬度9（仅次于钻石），是红宝石和蓝宝石的矿物名称。用作磨料和宝石。</p>
+                    <span class="tag">硬度9</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 黄玉 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/topaz.jpg" alt="黄玉" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硅酸盐</span>
+                    <h3 class="card-title">黄玉 (Topaz)</h3>
+                    <p class="card-text">化学式Al₂SiO₄(F,OH)₂。硬度8，是摩氏硬度标度的标准矿物。颜色多样，常为黄色、蓝色或无色。</p>
+                    <span class="tag">硬度8</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 石榴石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/garnet-andradite.jpg" alt="石榴石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">岛状硅酸盐</span>
+                    <h3 class="card-title">石榴石 (Garnet)</h3>
+                    <p class="card-text">化学式X₃Y₂(SiO₄)₃。硬度6.5-7.5，常呈等轴晶系的十二面体或四角三八面体。用作宝石和磨料。</p>
+                    <span class="tag">宝石</span><span class="tag">磨料</span>
+                </div>
+            </div>
+            <!-- 电气石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/tourmaline-in-matrix.jpg" alt="电气石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">环状硅酸盐</span>
+                    <h3 class="card-title">电气石 (Tourmaline)</h3>
+                    <p class="card-text">复杂的硼硅酸盐矿物。具有压电性和热电性。颜色极其丰富，是地球上色彩最丰富的矿物。</p>
+                    <span class="tag">宝石</span><span class="tag">压电性</span>
+                </div>
+            </div>
+            <!-- 锆石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/zircon-crystals.jpg" alt="锆石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">岛状硅酸盐</span>
+                    <h3 class="card-title">锆石 (Zircon)</h3>
+                    <p class="card-text">化学式ZrSiO₄。硬度7.5，高折射率。是锆的主要矿石，也是重要的宝石材料。</p>
+                    <span class="tag">宝石</span><span class="tag">锆矿石</span>
+                </div>
+            </div>
+            <!-- 蔷薇辉石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/rhodonite-nevada.jpg" alt="蔷薇辉石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">链状硅酸盐</span>
+                    <h3 class="card-title">蔷薇辉石 (Rhodonite)</h3>
+                    <p class="card-text">化学式MnSiO₃。粉红色，常含黑色锰氧化物条纹。是锰的次要矿石，也用作装饰石材。</p>
+                    <span class="tag">锰矿石</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 辰砂 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/cinnabar.jpg" alt="辰砂" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硫化物</span>
+                    <h3 class="card-title">辰砂 (Cinnabar)</h3>
+                    <p class="card-text">化学式HgS。鲜红色，是汞的唯一重要矿石。历史上用作红色颜料，因有毒现仅限工业用途。</p>
+                    <span class="tag">汞矿石</span><span class="tag">红色</span>
+                </div>
+            </div>
+            <!-- 蓝晶石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/kyanite-blue-bladed.jpg" alt="蓝晶石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">链状硅酸盐</span>
+                    <h3 class="card-title">蓝晶石 (Kyanite)</h3>
+                    <p class="card-text">化学式Al₂SiO₅。蓝色，具有显著的硬度各向异性。用于制造陶瓷、耐火材料和宝石。</p>
+                    <span class="tag">变质矿物</span><span class="tag">耐火材料</span>
+                </div>
+            </div>
+            <!-- 菱锰矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/gemstones/states/colorado-rhodochrosite-crystals.jpg" alt="菱锰矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碳酸盐</span>
+                    <h3 class="card-title">菱锰矿 (Rhodochrosite)</h3>
+                    <p class="card-text">化学式MnCO₃。粉红色至红色，遇酸起泡。是锰的重要矿石，也是受欢迎的宝石材料。</p>
+                    <span class="tag">锰矿石</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 菱锌矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/smithsonite-crystals.jpg" alt="菱锌矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碳酸盐</span>
+                    <h3 class="card-title">菱锌矿 (Smithsonite)</h3>
+                    <p class="card-text">化学式ZnCO₃。颜色多样（蓝、绿、粉、白），遇酸起泡。是锌的矿石，也可切磨成宝石。</p>
+                    <span class="tag">锌矿石</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 钒铅矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/vanadinite.jpg" alt="钒铅矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">磷酸盐</span>
+                    <h3 class="card-title">钒铅矿 (Vanadinite)</h3>
+                    <p class="card-text">化学式Pb₅(VO₄)₃Cl。鲜红至橙红色，六方柱状晶体。是钒的重要矿石，也是铅的次要来源。</p>
+                    <span class="tag">钒矿石</span><span class="tag">铅矿石</span>
+                </div>
+            </div>
+            <!-- 蛇纹石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/serpentine-lizardite.jpg" alt="蛇纹石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">层状硅酸盐</span>
+                    <h3 class="card-title">蛇纹石 (Serpentine)</h3>
+                    <p class="card-text">化学式Mg₃Si₂O₅(OH)₄。绿色至黄绿色，常呈纤维状或叶片状。由橄榄石等矿物蚀变形成。</p>
+                    <span class="tag">变质矿物</span><span class="tag">绿色</span>
+                </div>
+            </div>
+            <!-- 菱镁矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/magnesite-94.jpg" alt="菱镁矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碳酸盐</span>
+                    <h3 class="card-title">菱镁矿 (Magnesite)</h3>
+                    <p class="card-text">化学式MgCO₃。白色至浅黄色，遇酸起泡。用于制造耐火砖、镁金属和化学制品。</p>
+                    <span class="tag">镁矿石</span><span class="tag">耐火材料</span>
+                </div>
+            </div>
+            <!-- 红柱石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/andalusite-crystals.jpg" alt="红柱石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">岛状硅酸盐</span>
+                    <h3 class="card-title">红柱石 (Andalusite)</h3>
+                    <p class="card-text">化学式Al₂SiO₅。粉红色至红褐色，具有强烈的多色性。用于制造耐火材料和宝石。</p>
+                    <span class="tag">变质矿物</span><span class="tag">多色性</span>
+                </div>
+            </div>
+            <!-- 金红石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/rutilated-quartz-tumbled-stone.jpg" alt="金红石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">氧化物</span>
+                    <h3 class="card-title">金红石 (Rutile)</h3>
+                    <p class="card-text">化学式TiO₂。红褐色至黑色，常呈针状晶体。是钛的重要矿石，也是宝石中星光和猫眼效应的成因。</p>
+                    <span class="tag">钛矿石</span><span class="tag">针状晶体</span>
+                </div>
+            </div>
+            <!-- 锂云母 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/lepidolite-mica.jpg" alt="锂云母" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">层状硅酸盐</span>
+                    <h3 class="card-title">锂云母 (Lepidolite)</h3>
+                    <p class="card-text">含锂的云母矿物，粉紫色。是锂的重要矿石，也用作宝石材料。</p>
+                    <span class="tag">锂矿石</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 锂辉石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/spodumene-kunzite.jpg" alt="锂辉石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">链状硅酸盐</span>
+                    <h3 class="card-title">锂辉石 (Spodumene)</h3>
+                    <p class="card-text">化学式LiAlSi₂O₆。伟晶岩矿物，是锂的重要矿石。透明变种（紫锂辉石、绿锂辉石）是珍贵宝石。</p>
+                    <span class="tag">锂矿石</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 钛铁矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/ilmenite-608.jpg" alt="钛铁矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">氧化物</span>
+                    <h3 class="card-title">钛铁矿 (Ilmenite)</h3>
+                    <p class="card-text">化学式FeTiO₃。黑色，金属光泽。是钛的主要矿石来源，也是钛氧化物的主要来源。</p>
+                    <span class="tag">钛矿石</span><span class="tag">金属光泽</span>
+                </div>
+            </div>
+            <!-- 辉钼矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/molybdenite.jpg" alt="辉钼矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硫化物</span>
+                    <h3 class="card-title">辉钼矿 (Molybdenite)</h3>
+                    <p class="card-text">化学式MoS₂。铅灰色，具有极完全解理，可剥成薄片。是钼的主要矿石，也用作固体润滑剂。</p>
+                    <span class="tag">钼矿石</span><span class="tag">润滑剂</span>
+                </div>
+            </div>
+            <!-- 褐铁矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/limonite.jpg" alt="褐铁矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">氧化物</span>
+                    <h3 class="card-title">褐铁矿 (Limonite)</h3>
+                    <p class="card-text">非晶质铁氧化物混合物。黄褐色至暗褐色。是重要的铁矿石，也用作颜料。</p>
+                    <span class="tag">铁矿石</span><span class="tag">非晶质</span>
+                </div>
+            </div>
+            <!-- 黄铜矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/chalcopyrite-auriferous-278.jpg" alt="黄铜矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硫化物</span>
+                    <h3 class="card-title">黄铜矿 (Chalcopyrite)</h3>
+                    <p class="card-text">化学式CuFeS₂。黄铜色，金属光泽。是铜最重要的矿石，已有5000多年的开采历史。</p>
+                    <span class="tag">铜矿石</span><span class="tag">金属光泽</span>
+                </div>
+            </div>
+            <!-- 蓝铜矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/azurite-nodule.jpg" alt="蓝铜矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">碳酸盐</span>
+                    <h3 class="card-title">蓝铜矿 (Azurite)</h3>
+                    <p class="card-text">化学式Cu₃(CO₃)₂(OH)₂。深蓝色，遇酸起泡。是铜的矿石，也用作颜料和宝石。</p>
+                    <span class="tag">铜矿石</span><span class="tag">深蓝色</span>
+                </div>
+            </div>
+            <!-- 异极矿 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/hemimorphite.jpg" alt="异极矿" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硅酸盐</span>
+                    <h3 class="card-title">异极矿 (Hemimorphite)</h3>
+                    <p class="card-text">化学式Zn₄Si₂O₇(OH)₂·H₂O。白色至蓝色，常呈板状晶体。是锌的矿石，可切磨成蓝色宝石。</p>
+                    <span class="tag">锌矿石</span><span class="tag">宝石</span>
+                </div>
+            </div>
+            <!-- 紫翠石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/charoitite-composition.jpg" alt="紫翠石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">硅酸盐</span>
+                    <h3 class="card-title">紫翠石 (Charoite)</h3>
+                    <p class="card-text">紫色硅酸盐矿物，仅产于俄罗斯西伯利亚。具有独特的紫色和白色纤维状纹理，是珍贵的宝石材料。</p>
+                    <span class="tag">宝石</span><span class="tag">俄罗斯特产</span>
+                </div>
+            </div>
+            <!-- 苏纪石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/sugilite.jpg" alt="苏纪石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">环状硅酸盐</span>
+                    <h3 class="card-title">苏纪石 (Sugilite)</h3>
+                    <p class="card-text">稀有矿物，以鲜艳的粉紫色至紫色著称。是珍贵的宝石材料。</p>
+                    <span class="tag">宝石</span><span class="tag">稀有</span>
+                </div>
+            </div>
+            <!-- 磷铝石 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/variscite-nodules.jpg" alt="磷铝石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">磷酸盐</span>
+                    <h3 class="card-title">磷铝石 (Variscite)</h3>
+                    <p class="card-text">黄绿色至蓝绿色，与绿松石相似。用作装饰石材和宝石。</p>
+                    <span class="tag">宝石</span><span class="tag">绿色</span>
+                </div>
+            </div>
+            <!-- 辉石族 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://geology.com/minerals/photos/spodumene-gems.jpg" alt="辉石" onerror="this.src='https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">链状硅酸盐</span>
+                    <h3 class="card-title">辉石 (Pyroxene)</h3>
+                    <p class="card-text">一组链状硅酸盐矿物，常见于岩浆岩和变质岩中。包括普通辉石、透辉石、顽火辉石等。</p>
+                    <span class="tag">造岩矿物</span><span class="tag">链状结构</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 地貌观察部分 -->
+    <div id="landforms-section" class="hidden">
+        <h2 class="section-title">一、物理风化地貌 (Physical Weathering Landforms)</h2>
+        <div class="category-desc">
+            岩石在温度变化、水、冰等因素作用下发生机械破碎，但化学成分不变。常见于干旱、半干旱地区和高山地区。
+        </div>
+        <div class="grid">
+            <!-- 球状风化 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="http://k.sinaimg.cn/n/sinakd20220104s/134/w593h341/20220104/f82c-3c24396bc18ba16b821d304d721fb265.jpg/w700d1q75cms.jpg" alt="球状风化" onerror="this.src='https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">物理/化学风化</span>
+                    <h3 class="card-title">球状风化 (Spheroidal Weathering)</h3>
+                    <p class="card-text">岩石在各个方向上同时遭受风化，棱角最先被磨去，形成球形或椭球形外观。常见于花岗岩地区。</p>
+                    <span class="tag">花岗岩</span><span class="tag">风化壳</span>
+                </div>
+            </div>
+            <!-- 石蛋 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="http://k.sinaimg.cn/n/sinakd20220104s/247/w640h407/20220104/2f38-2ffdff370b6d093dfc946496ed2cbb28.jpg/w700d1q75cms.jpg" alt="石蛋" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">物理风化</span>
+                    <h3 class="card-title">石蛋 (Core Stones)</h3>
+                    <p class="card-text">花岗岩体经球状风化后形成的大型球形石块。海南岛天涯石、三亚石蛋地貌是其典型代表。</p>
+                    <span class="tag">花岗岩</span><span class="tag">热带</span>
+                </div>
+            </div>
+            <!-- 冻融作用 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="http://5b0988e595225.cdn.sohucs.com/images/20170916/b8299f61856345019f9e7371841783d4.jpeg" alt="冻融作用" onerror="this.src='https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">物理风化</span>
+                    <h3 class="card-title">冻融作用 (Frost Wedging)</h3>
+                    <p class="card-text">水在岩石裂隙中结冰体积膨胀，撑裂岩石。高山地区和极地常见，形成碎石坡、石海等地貌。</p>
+                    <span class="tag">高山</span><span class="tag">寒带</span>
+                </div>
+            </div>
+            <!-- 岩石裂隙 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://k.sinaimg.cn/n/sinakd20211223s/765/w441h324/20211223/6f53-5dfa94ac84cf4f5f13b4dd60f67ec5d1.png/w700d1q75cms.jpg?by=cms_fixed_width" alt="岩石裂隙" onerror="this.src='https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">物理风化</span>
+                    <h3 class="card-title">岩石裂隙 (Joints)</h3>
+                    <p class="card-text">岩石中的构造裂隙，为风化作用和水体渗透提供通道。常形成网格状或棋盘格式裂隙系统。</p>
+                    <span class="tag">构造</span><span class="tag">基岩</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">二、流水地貌 (Fluvial Landforms)</h2>
+        <div class="category-desc">
+            河流在流动过程中侵蚀、搬运、沉积作用形成的地貌。体现了从上游到下游水系发育的演变过程。
+        </div>
+        <div class="grid">
+            <!-- V形谷 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://so1.360tres.com/t01b9dbd7c3fe28ebc8.jpg" alt="V形谷" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">河流侵蚀</span>
+                    <h3 class="card-title">V形谷 (V-Shaped Valley)</h3>
+                    <p class="card-text">河流上游下蚀作用强烈，形成两岸陡峭的V形谷。常见于山地河流，是河流发育早期的典型地貌。</p>
+                    <span class="tag">下蚀</span><span class="tag">上游</span>
+                </div>
+            </div>
+            <!-- 冲积扇 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="http://img.mp.sohu.com/upload/20170201/dea3db61d63d45e595815f5f94e5c7ea_th.jpg" alt="冲积扇" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">河流沉积</span>
+                    <h3 class="card-title">冲积扇 (Alluvial Fan)</h3>
+                    <p class="card-text">河流出山口后流速减缓，沉积物堆积形成扇形地貌。沉积物从山口向边缘由粗变细。</p>
+                    <span class="tag">沉积</span><span class="tag">山口</span>
+                </div>
+            </div>
+            <!-- 河漫滩 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="http://5b0988e595225.cdn.sohucs.com/images/20190126/6db8302e0f5945d997dcca32196e1aad.jpeg" alt="河漫滩" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">河流沉积</span>
+                    <h3 class="card-title">河漫滩 (Floodplain)</h3>
+                    <p class="card-text">河流中下游洪水期被淹没的平坦地带。由河流侧蚀和沉积作用形成，土壤肥沃。</p>
+                    <span class="tag">侧蚀</span><span class="tag">中下游</span>
+                </div>
+            </div>
+            <!-- 三角洲 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://p5.itc.cn/q_70/images03/20210125/be72f817f6a2486c8c66fcd721f2c8e3.jpeg" alt="三角洲" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">河流沉积</span>
+                    <h3 class="card-title">三角洲 (Delta)</h3>
+                    <p class="card-text">河流入海（湖）口处沉积形成的三角形的沉积体。沉积物在河口向海方向延伸。</p>
+                    <span class="tag">沉积</span><span class="tag">河口</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">三、喀斯特地貌 (Karst Landforms)</h2>
+        <div class="category-desc">
+            可溶性岩石（主要是石灰岩）在含有CO₂的流水作用下形成的地貌。中国西南地区最为发育，被誉为"中国南方喀斯特"。
+        </div>
+        <div class="grid">
+            <!-- 石林 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://th.bing.com/th/id/R.b34f62cffdc3a36e24558e3acd8f1133?rik=eQCtmlUo%2bgZyUg&riu=http%3a%2f%2fn.sinaimg.cn%2fsinacn20111%2f300%2fw1620h1080%2f20190923%2f5e8c-iewtena7661597.jpg&ehk=vRKFKZnG0BG4hjSVF2iv4mirmS8x5td2TyQGRN%2fj%2bT0%3d&risl=&pid=ImgRaw&r=0" alt="石林" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">喀斯特</span>
+                    <h3 class="card-title">石林 (Stone Forest)</h3>
+                    <p class="card-text">石灰岩在垂直裂隙水流作用下形成的柱状、塔状石峰群。云南石林是世界自然遗产。</p>
+                    <span class="tag">石灰岩</span><span class="tag">地表</span>
+                </div>
+            </div>
+            <!-- 溶洞 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://gd-hbimg.huaban.com/3cbe197f87723869531bf74c805c073b9bf15ea46d9e4-zm5M3B_fw658" alt="溶洞" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">喀斯特</span>
+                    <h3 class="card-title">溶洞 (Karst Cave)</h3>
+                    <p class="card-text">地下水在石灰岩中溶蚀形成的地下洞穴。洞内常发育石钟乳、石笋、石柱等沉积景观。</p>
+                    <span class="tag">石灰岩</span><span class="tag">地下</span>
+                </div>
+            </div>
+            <!-- 天坑 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://tse3.mm.bing.net/th/id/OIP.9Hd-aU1z-YGhgPD35pNpBgHaEx?rs=1&pid=ImgDetMain&o=7&rm=3" alt="天坑" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">喀斯特</span>
+                    <h3 class="card-title">天坑 (Sinkhole/Tiankeng)</h3>
+                    <p class="card-text">地表岩层大规模塌陷形成的巨型漏斗状凹陷。中国重庆武隆是典型地区。</p>
+                    <span class="tag">石灰岩</span><span class="tag">塌陷</span>
+                </div>
+            </div>
+            <!-- 峰林 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://th.bing.com/th/id/R.db262afea7a1743e43ee6fd7b00884c3?rik=q1QNYA0GZgy8rA&riu=http%3a%2f%2fp0.itc.cn%2fq_70%2fimages03%2f20200908%2f1ffa9b471a064c0dbc52485d54dca81b.jpeg&ehk=UpjpR%2bl1RCFxmLnfnZAp%2bIoNZhz9K3KIEiH7MQ53KHc%3d&risl=&pid=ImgRaw&r=0" alt="峰林" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">喀斯特</span>
+                    <h3 class="card-title">峰林 (Peak Forest)</h3>
+                    <p class="card-text">石灰岩高原上连续分布的塔状山峰群。广西桂林阳朔是其典型代表，有"桂林山水甲天下"之美誉。</p>
+                    <span class="tag">石灰岩</span><span class="tag">地表</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">四、海岸地貌 (Coastal Landforms)</h2>
+        <div class="category-desc">
+            海洋与陆地相互作用形成的地貌。包括海浪侵蚀、潮汐作用、海洋沉积等形成的地形。
+        </div>
+        <div class="grid">
+            <!-- 海蚀崖 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://th.bing.com/th/id/R.2c4558753a7876b09313806667de0d52?rik=1NgR6Y2XpIjnYA&riu=http%3a%2f%2f5b0988e595225.cdn.sohucs.com%2fimages%2f20191209%2f1d353e32b6e140c7806cd3c4a21c1d12.jpeg&ehk=2OXwyudhkIbndaCGQ5knWXfo7XrSjkSpl%2fpYI36mzuI%3d&risl=&pid=ImgRaw&r=0" alt="海蚀崖" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">海蚀</span>
+                    <h3 class="card-title">海蚀崖 (Sea Cliff)</h3>
+                    <p class="card-text">海浪长期侵蚀基岩海岸形成的陡峭崖壁。底部常形成海蚀凹槽（海蚀龛）。</p>
+                    <span class="tag">侵蚀</span><span class="tag">基岩海岸</span>
+                </div>
+            </div>
+            <!-- 海蚀柱 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://p1.ssl.qhmsg.com/t012692169fb6b872af.jpg" alt="海蚀柱" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">海蚀</span>
+                    <h3 class="card-title">海蚀柱 (Sea Stack)</h3>
+                    <p class="card-text">海蚀崖后退过程中，残留于海中的柱状岩体。如青岛石老人、厦门鼓浪屿等。</p>
+                    <span class="tag">侵蚀</span><span class="tag">残留</span>
+                </div>
+            </div>
+            <!-- 沙嘴 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://eartheclipse.com/wp-content/uploads/2019/06/Zlatni-Rat-e1559834237530.jpg" alt="沙嘴" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">海积</span>
+                    <h3 class="card-title">沙嘴 (Sandbar/Spit)</h3>
+                    <p class="card-text">海岸带泥沙在海流作用下堆积形成的狭长沙堤。一端与陆地相连，另一端伸入海中。</p>
+                    <span class="tag">沉积</span><span class="tag">泥沙</span>
+                </div>
+            </div>
+            <!-- 珊瑚礁 -->
+            <div class="card">
+                <div class="card-img-container">
+                    <img src="https://bkimg.cdn.bcebos.com/pic/d1a20cf431adcbefe699a8fcacaf2edda2cc9f9f" alt="珊瑚礁" onerror="this.src='https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640'">
+                </div>
+                <div class="card-content">
+                    <span class="card-subtitle">生物沉积</span>
+                    <h3 class="card-title">珊瑚礁 (Coral Reef)</h3>
+                    <p class="card-text">珊瑚虫遗体和石灰质藻类沉积形成的钙质礁体。是热带浅海特有的生态系统。</p>
+                    <span class="tag">生物</span><span class="tag">热带</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    <p>图片来源：Geology.com 及 Unsplash<br>
+    适用于中学地理拓展及大学普通地质学课程</p>
+</footer>
+
+<script>
+    function showSection(sectionId) {
+        // 隐藏所有内容
+        document.getElementById('rocks-section').classList.add('hidden');
+        document.getElementById('minerals-section').classList.add('hidden');
+        document.getElementById('landforms-section').classList.add('hidden');
+        
+        // 移除按钮激活状态
+        const buttons = document.querySelectorAll('.tab-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+
+        // 显示选中内容
+        if (sectionId === 'rocks') {
+            document.getElementById('rocks-section').classList.remove('hidden');
+            buttons[0].classList.add('active');
+        } else if (sectionId === 'minerals') {
+             document.getElementById('minerals-section').classList.remove('hidden');
+             buttons[1].classList.add('active');
+         } else if (sectionId === 'landforms') {
+             document.getElementById('landforms-section').classList.remove('hidden');
+             buttons[2].classList.add('active');
+         }
+        
+        // 滚动到顶部
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>
