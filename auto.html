@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地图预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Plugins -->
+    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        
+        .map-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            min-width: 200px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        .map-selector::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .map-selector::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .map-selector::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .map-selector h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .map-option {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .map-option:hover {
+            background: #f1f5f9;
+        }
+        
+        .map-option.active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .map-option-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .map-option-info {
+            flex: 1;
+        }
+        
+        .map-option-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        
+        .map-option-desc {
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .search-box {
+            position: absolute;
+            top: 20px;
+            left: 70px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .search-input {
+            width: 200px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-btn {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .search-btn:hover {
+            background: #2563eb;
+        }
+
+        .zoom-control {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: white;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .zoom-btn:hover {
+            background: #f1f5f9;
+        }
+        
+        .zoom-btn:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .zoom-btn:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .current-location {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            width: 40px;
+            height: 40px;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        
+        .current-location:hover {
+            transform: scale(1.1);
+            background: #f1f5f9;
+        }
+        
+        .zoom-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            font-family: monospace;
+        }
+        
+        .zoom-indicator span {
+            color: #3b82f6;
+        }
+
+        .map-selector.collapsed {
+            min-width: auto;
+            padding: 12px;
+        }
+
+        .map-selector.collapsed .map-option,
+        .map-selector.collapsed h3,
+        .map-selector.collapsed > div:not(.map-selector-header) {
+            display: none;
+        }
+
+        .collapse-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            margin-bottom: 0;
+        }
+
+        .collapse-btn:hover {
+            background: #e2e8f0;
+        }
+
+        .map-selector.collapsed .collapse-btn {
+            margin-bottom: 0;
+        }
+
+        .map-selector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .map-selector.collapsed .map-selector-header {
+            margin-bottom: 0;
+        }
+
+        .map-selector.collapsed .map-selector-header h3 {
+            display: none;
+        }
+
+        .map-selector.collapsed .collapse-btn {
+            display: flex !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- 地名搜索框 -->
+    <div class="search-box">
+        <input type="text" id="search-input" class="search-input" placeholder="搜索地名（如：北京、上海）">
+        <button id="search-btn" class="search-btn">搜索</button>
+    </div>
+
+    <div class="map-selector" id="map-selector">
+        <div class="map-selector-header">
+            <h3 style="margin: 0;">选择地图</h3>
+            <button class="collapse-btn" id="collapse-btn" title="折叠/展开">📋</button>
+        </div>
+        
+        <div style="margin-bottom: 12px; font-size: 12px; font-weight: 600; color: #64748b;">ESRI地图</div>
+        <div class="map-option active" data-layer="satellite">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #1e3a8a, #3b82f6);">🛰️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">ESRI卫星影像</div>
+                <div class="map-option-desc">全球卫星影像</div>
+            </div>
+        </div>
+        <div class="map-option" data-layer="esri">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #4f46e5, #6366f1);">🗺️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">ESRI地图</div>
+                <div class="map-option-desc">世界街道地图</div>
+            </div>
+        </div>
+        <div class="map-option" data-layer="topo">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #059669, #10b981);">⛰️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">ESRI地形</div>
+                <div class="map-option-desc">地形等高线图</div>
+            </div>
+        </div>
+        <div class="map-option" data-layer="natgeo">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">🗺️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">国家地理</div>
+                <div class="map-option-desc">National Geographic</div>
+            </div>
+        </div>
+        <div class="map-option" data-layer="transport">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #7c3aed, #8b5cf6);">🚗</div>
+            <div class="map-option-info">
+                <div class="map-option-title">ESRI交通</div>
+                <div class="map-option-desc">交通网络图</div>
+            </div>
+        </div>
+        <div class="map-option" data-layer="relief">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #78716c, #a8a29e);">⛰️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">ESRI阴影地形</div>
+                <div class="map-option-desc">地形阴影图</div>
+            </div>
+        </div>
+        
+        <div style="margin: 16px 0 12px 0; font-size: 12px; font-weight: 600; color: #64748b;">其他地图</div>
+        <div class="map-option" data-layer="osm">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #059669, #10b981);">🗺️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">OpenStreetMap</div>
+                <div class="map-option-desc">开源地图数据</div>
+            </div>
+        </div>
+        <div class="map-option" data-layer="gaode">
+            <div class="map-option-icon" style="background: linear-gradient(135deg, #dc2626, #ef4444);">🛰️</div>
+            <div class="map-option-info">
+                <div class="map-option-title">高德卫星影像</div>
+                <div class="map-option-desc">国内卫星影像</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="zoom-control">
+        <button class="zoom-btn" id="zoom-in">+</button>
+        <button class="zoom-btn" id="zoom-out">−</button>
+    </div>
+    
+    <button class="current-location" id="locate-btn" title="定位到当前位置">📍</button>
+    
+    <div class="zoom-indicator">Zoom: <span id="zoom-level">4</span></div>
+
+    <script>
+        const map = L.map('map', {
+            zoomControl: false
+        }).setView([35, 105], 4);
+        
+        const mapLayers = {
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Esri Satellite',
+                crossOrigin: true
+            }),
+            esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'ESRI World Street Map',
+                crossOrigin: true
+            }),
+            topo: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'ESRI World Topo Map',
+                crossOrigin: true
+            }),
+            natgeo: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'National Geographic World Map',
+                crossOrigin: true
+            }),
+            transport: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'ESRI World Transportation',
+                crossOrigin: true
+            }),
+            relief: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'ESRI World Shaded Relief',
+                crossOrigin: true
+            }),
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                subdomains: ['a', 'b', 'c'],
+                crossOrigin: true
+            }),
+            gaode: L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
+                attribution: '高德卫星影像',
+                subdomains: ['1', '2', '3', '4'],
+                crossOrigin: true
+            })
+        };
+        
+        let currentLayer = mapLayers.satellite;
+        currentLayer.addTo(map);
+        
+        L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map);
+        
+        // 更新缩放等级显示
+        function updateZoomLevel() {
+            document.getElementById('zoom-level').textContent = map.getZoom();
+        }
+        
+        // 监听缩放事件
+        map.on('zoomend', updateZoomLevel);
+        
+        // 初始化显示
+        updateZoomLevel();
+        
+        function switchMapLayer(layerType) {
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+            
+            currentLayer = mapLayers[layerType];
+            currentLayer.addTo(map);
+            
+            document.querySelectorAll('.map-option').forEach(opt => {
+                opt.classList.remove('active');
+                if (opt.getAttribute('data-layer') === layerType) {
+                    opt.classList.add('active');
+                }
+            });
+        }
+        
+        document.querySelectorAll('.map-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const layerType = option.getAttribute('data-layer');
+                switchMapLayer(layerType);
+            });
+        });
+        
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            map.zoomIn();
+        });
+
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            map.zoomOut();
+        });
+
+        // 地图选择器折叠功能
+        const mapSelector = document.getElementById('map-selector');
+        const collapseBtn = document.getElementById('collapse-btn');
+        let isCollapsed = false;
+
+        collapseBtn.addEventListener('click', () => {
+            isCollapsed = !isCollapsed;
+            if (isCollapsed) {
+                mapSelector.classList.add('collapsed');
+                collapseBtn.textContent = '📋';
+                collapseBtn.title = '展开';
+            } else {
+                mapSelector.classList.remove('collapsed');
+                collapseBtn.textContent = '📋';
+                collapseBtn.title = '折叠';
+            }
+        });
+
+        // 地名搜索功能
+        let searchMarker = null;
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+
+        // 百度地图API Key
+        const BAIDU_AK = '2P3BS8kb9vg0yGvXpECPNoYiC7bii7O1';
+
+        // 百度坐标转WGS84坐标
+        function bd09ToWgs84(bd_lon, bd_lat) {
+            const x = bd_lon - 0.0065;
+            const y = bd_lat - 0.006;
+            const z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * Math.PI * 3000.0 / 180.0);
+            const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * Math.PI * 3000.0 / 180.0);
+            const gg_lon = z * Math.cos(theta);
+            const gg_lat = z * Math.sin(theta);
+
+            // GCJ02 to WGS84
+            const a = 6378245.0;
+            const ee = 0.00669342162296594323;
+
+            function outOfChina(lng, lat) {
+                return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+            }
+
+            function transformLat(x, y) {
+                let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * x + 0.2 * x * y;
+                ret += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+                ret += (20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin(y / 3.0 * Math.PI)) * 2.0 / 3.0;
+                ret += (160.0 * Math.sin(y / 12.0 * Math.PI) + 320 * Math.sin(y * Math.PI / 30.0)) * 2.0 / 3.0;
+                return ret;
+            }
+
+            function transformLng(x, y) {
+                let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+                ret += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+                ret += (20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin(x / 3.0 * Math.PI)) * 2.0 / 3.0;
+                ret += (150.0 * Math.sin(x / 12.0 * Math.PI) + 300.0 * Math.sin(x / 30.0 * Math.PI)) * 2.0 / 3.0;
+                return ret;
+            }
+
+            if (outOfChina(gg_lon, gg_lat)) {
+                return { lon: gg_lon, lat: gg_lat };
+            }
+
+            let dLat = transformLat(gg_lon - 105.0, gg_lat - 35.0);
+            let dLon = transformLng(gg_lon - 105.0, gg_lat - 35.0);
+            const radLat = gg_lat / 180.0 * Math.PI;
+            let magic = Math.sin(radLat);
+            magic = 1 - ee * magic * magic;
+            const sqrtMagic = Math.sqrt(magic);
+            dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+            dLon = (dLon * 180.0) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+            const wgs_lat = gg_lat - dLat;
+            const wgs_lon = gg_lon - dLon;
+
+            return { lon: wgs_lon, lat: wgs_lat };
+        }
+
+        // 使用百度地图API进行地名搜索
+        function searchLocation() {
+            const query = searchInput.value.trim();
+            if (!query) {
+                alert('请输入要搜索的地名');
+                return;
+            }
+
+            searchBtn.textContent = '搜索中...';
+            searchBtn.disabled = true;
+
+            // 使用JSONP方式调用百度地图API
+            const callbackName = 'baiduSearchCallback_' + Date.now();
+
+            window[callbackName] = function(data) {
+                console.log('百度搜索结果:', data);
+
+                if (data.status === 0 && data.results && data.results.length > 0) {
+                    const result = data.results[0];
+                    const bd_lat = result.location.lat;
+                    const bd_lon = result.location.lng;
+                    const name = result.name;
+                    const address = result.address || '';
+
+                    // 转换为WGS84坐标
+                    const wgs = bd09ToWgs84(bd_lon, bd_lat);
+
+                    console.log('百度坐标:', bd_lon, bd_lat);
+                    console.log('WGS84坐标:', wgs.lon, wgs.lat);
+
+                    // 移除之前的标记
+                    if (searchMarker) {
+                        map.removeLayer(searchMarker);
+                    }
+
+                    // 添加新标记
+                    searchMarker = L.marker([wgs.lat, wgs.lon]).addTo(map)
+                        .bindPopup(`<b>${name}</b><br>${address}`)
+                        .openPopup();
+
+                    // 移动到该位置
+                    map.setView([wgs.lat, wgs.lon], 12);
+                } else {
+                    alert('未找到该地点，请尝试其他关键词');
+                }
+
+                // 清理
+                delete window[callbackName];
+                if (script.parentNode) {
+                    document.body.removeChild(script);
+                }
+
+                searchBtn.textContent = '搜索';
+                searchBtn.disabled = false;
+            };
+
+            const script = document.createElement('script');
+            script.src = `https://api.map.baidu.com/place/v2/search?query=${encodeURIComponent(query)}&region=全国&output=json&ak=${BAIDU_AK}&callback=${callbackName}`;
+            script.onerror = function() {
+                alert('搜索失败，请检查网络连接');
+                delete window[callbackName];
+                if (script.parentNode) {
+                    document.body.removeChild(script);
+                }
+                searchBtn.textContent = '搜索';
+                searchBtn.disabled = false;
+            };
+            document.body.appendChild(script);
+        }
+
+        searchBtn.addEventListener('click', searchLocation);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchLocation();
+            }
+        });
+
+        document.getElementById('locate-btn').addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        map.setView([lat, lng], 13);
+
+                        L.marker([lat, lng]).addTo(map)
+                            .bindPopup('当前位置')
+                            .openPopup();
+                    },
+                    (error) => {
+                        alert('无法获取位置信息');
+                        console.error(error);
+                    }
+                );
+            } else {
+                alert('您的浏览器不支持地理定位');
+            }
+        });
+    </script>
+</body>
+</html>
