@@ -8,6 +8,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
     <!-- 添加Chart.js用于潮汐图表 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 添加农历计算库 -->
+    <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.2.0/lunar.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* 样式保持不变，与原有相同 */
@@ -1124,13 +1126,133 @@
             });
         }
         
+        // 根据公历日期更新农历（月相滑块）
+        function updateLunarFromSolar() {
+            // 获取当前年份（使用2025年作为默认年份）
+            const year = new Date().getFullYear();
+            
+            // 将dayOfYear转换为月日
+            const { month, day } = getMonthAndDayFromDayOfYear(params.dayOfYear);
+            
+            // 创建公历日期对象
+            const solarDate = new Date(year, month - 1, day);
+            
+            // 使用lunar-javascript库计算农历
+            if (typeof Lunar !== 'undefined') {
+                try {
+                    const lunar = Lunar.fromDate(solarDate);
+                    const lunarDay = lunar.getDay();
+                    
+                    // 将农历日转换为月龄（0-29.53）
+                    // 农历初一对应月龄0，农历十五对应月龄约14.8
+                    params.moonPhase = (lunarDay - 1) * (29.53 / 30);
+                    if (params.moonPhase >= 29.53) params.moonPhase = 29.53;
+                    
+                    // 更新农历滑块
+                    document.getElementById('moonPhase').value = params.moonPhase;
+                    
+                    console.log('公历转农历:', {
+                        '公历': `${year}年${month}月${day}日`,
+                        '农历': `第${lunarDay}天`,
+                        '月龄': params.moonPhase.toFixed(2)
+                    });
+                } catch (e) {
+                    console.error('农历计算失败:', e);
+                    // 使用备用方法
+                    calculateLunarAndPhase(solarDate);
+                }
+            } else {
+                // 如果库未加载，使用备用方法
+                calculateLunarAndPhase(solarDate);
+            }
+        }
+        
+        // 根据农历（月相）更新公历日期
+        function updateSolarFromLunar() {
+            // 获取当前年份
+            const year = new Date().getFullYear();
+            
+            // 获取当前公历日期
+            const { month: currentMonth, day: currentDay } = getMonthAndDayFromDayOfYear(params.dayOfYear);
+            const currentDate = new Date(year, currentMonth - 1, currentDay);
+            
+            // 获取当前日期的农历信息
+            let currentLunarMonth = 1;
+            if (typeof Lunar !== 'undefined') {
+                try {
+                    const currentLunar = Lunar.fromDate(currentDate);
+                    currentLunarMonth = currentLunar.getMonth();
+                } catch (e) {
+                    console.warn('获取当前农历月份失败:', e);
+                }
+            }
+            
+            // 将月龄转换为农历日（1-30）
+            const lunarDay = Math.floor(params.moonPhase / 29.53 * 30) + 1;
+            const clampedLunarDay = Math.min(lunarDay, 30);
+            
+            // 使用lunar-javascript库查找对应的公历日期
+            if (typeof Lunar !== 'undefined') {
+                try {
+                    // 在当前年份范围内查找对应的公历日期
+                    let foundDate = null;
+                    let minMonthDiff = Infinity;
+                    
+                    // 遍历全年查找农历日期匹配的公历日期
+                    for (let month = 0; month < 12; month++) {
+                        for (let day = 1; day <= 31; day++) {
+                            try {
+                                const testDate = new Date(year, month, day);
+                                if (testDate.getMonth() !== month) continue; // 跳过无效日期
+                                
+                                const lunar = Lunar.fromDate(testDate);
+                                if (lunar.getDay() === clampedLunarDay) {
+                                    // 优先选择接近当前农历月份的日期
+                                    const monthDiff = Math.abs(lunar.getMonth() - currentLunarMonth);
+                                    
+                                    // 如果找到更接近的月份，或者是第一个找到的
+                                    if (monthDiff < minMonthDiff) {
+                                        minMonthDiff = monthDiff;
+                                        foundDate = testDate;
+                                    }
+                                }
+                            } catch (e) {
+                                continue;
+                            }
+                        }
+                    }
+                    
+                    if (foundDate) {
+                        // 计算dayOfYear
+                        const startOfYear = new Date(year, 0, 0);
+                        const diff = foundDate - startOfYear;
+                        const oneDay = 1000 * 60 * 60 * 24;
+                        params.dayOfYear = Math.floor(diff / oneDay);
+                        
+                        // 更新日期滑块
+                        document.getElementById('dayOfYear').value = params.dayOfYear;
+                        
+                        console.log('农历转公历:', {
+                            '农历日': clampedLunarDay,
+                            '当前农历月': currentLunarMonth,
+                            '找到农历月': Lunar.fromDate(foundDate).getMonth(),
+                            '公历': `${foundDate.getMonth() + 1}月${foundDate.getDate()}日`,
+                            'dayOfYear': params.dayOfYear
+                        });
+                    }
+                } catch (e) {
+                    console.error('农历转公历失败:', e);
+                }
+            }
+        }
+        
         // 获取用户地理位置并设置纬度
         function getCurrentLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
-                        // 获取用户纬度
-                        const latitude = position.coords.latitude;
+                        // 获取用户纬度并取2位小数
+                        const latitude = parseFloat(position.coords.latitude.toFixed(2));
                         
                         // 设置参数中的纬度
                         params.latitude = latitude;
@@ -2294,9 +2416,30 @@
         // 根据一年中的第几天获取日期字符串
         function getDateStringFromDayOfYear(dayOfYear) {
             const { month, day } = getMonthAndDayFromDayOfYear(dayOfYear);
-            // 获取农历日期
-            const moonPhaseInfo = calculateMoonPhase(params.moonPhase);
-            return `${month}月${day}日（农历${moonPhaseInfo.lunarDay}）`;
+            
+            // 使用真实的农历库获取农历日期
+            const year = new Date().getFullYear();
+            const solarDate = new Date(year, month - 1, day);
+            
+            let lunarStr = "";
+            if (typeof Lunar !== 'undefined') {
+                try {
+                    const lunar = Lunar.fromDate(solarDate);
+                    const lunarMonth = lunar.getMonth();
+                    const lunarDay = lunar.getDay();
+                    lunarStr = `农历${lunarMonth}月${getLunarDayString(lunarDay)}`;
+                } catch (e) {
+                    // 如果库未加载，使用备用方法
+                    const moonPhaseInfo = calculateMoonPhase(params.moonPhase);
+                    lunarStr = `农历${moonPhaseInfo.lunarDay}`;
+                }
+            } else {
+                // 备用方法
+                const moonPhaseInfo = calculateMoonPhase(params.moonPhase);
+                lunarStr = `农历${moonPhaseInfo.lunarDay}`;
+            }
+            
+            return `${month}月${day}日（${lunarStr}）`;
         }
         
         // 更新3D月相模型
@@ -3085,9 +3228,13 @@
                 updateMoonPosition();
             });
             
-            // 日期滑块
+            // 日期滑块 - 联动更新农历
             document.getElementById('dayOfYear').addEventListener('input', function() {
                 params.dayOfYear = parseInt(this.value);
+                
+                // 根据公历日期计算农历日期，并更新月相滑块
+                updateLunarFromSolar();
+                
                 updateDisplay();
                 updateSunPosition();
                 updateMoonPosition();
@@ -3101,9 +3248,13 @@
                 updateMoonPosition();
             });
             
-            // 月相滑块
+            // 月相滑块（农历）- 联动更新公历
             document.getElementById('moonPhase').addEventListener('input', function() {
                 params.moonPhase = parseFloat(this.value);
+                
+                // 根据农历日期计算公历日期，并更新日期滑块
+                updateSolarFromLunar();
+                
                 updateDisplay();
                 updateMoonPosition();
             });

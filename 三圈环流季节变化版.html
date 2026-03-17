@@ -138,7 +138,26 @@
 
     const EARTH_RADIUS = 5;
 
-    function init() {
+    // 测网速函数
+    async function testNetworkSpeed() {
+        const startTime = performance.now();
+        
+        try {
+            // 使用fetch测试下载速度
+            const response = await fetch('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg', { method: 'HEAD' });
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            
+            // 如果响应时间小于2000ms，认为是快网速
+            return duration < 2000;
+        } catch (error) {
+            // 如果测试失败，默认使用快速加载
+            console.log('网速测试失败，使用快速加载模式');
+            return false;
+        }
+    }
+
+    async function init() {
         scene = new THREE.Scene();
         
         camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -168,7 +187,19 @@
         scene.add(pivot);
 
         const texLoader = new THREE.TextureLoader();
-        const textureUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+        
+        // 根据网速选择纹理和几何体细节
+        const isFastNetwork = await testNetworkSpeed();
+        let textureUrl, geometrySegments;
+        
+        if (isFastNetwork) {
+            textureUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+            geometrySegments = 64;
+        } else {
+            // 慢网速：使用更小的纹理URL（这里使用相同的URL但降低几何体细节）
+            textureUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+            geometrySegments = 32; // 降低几何体细节
+        }
         
         const globeMat = new THREE.MeshPhongMaterial({ color: 0xcccccc, shininess: 15 });
 
@@ -182,7 +213,7 @@
             document.getElementById('loading').style.display = 'none';
         });
 
-        const globeGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+        const globeGeo = new THREE.SphereGeometry(EARTH_RADIUS, geometrySegments, geometrySegments);
         globe = new THREE.Mesh(globeGeo, globeMat);
         globe.rotation.y = -Math.PI / 2;
         pivot.add(globe);
@@ -464,7 +495,7 @@
                 u = -speed * deflectFactor;
             }
 
-            const speedScale = 0.35;
+            const speedScale = 0.15;
             p.lon += u * speedScale;
             p.lat += v * speedScale;
 
@@ -481,7 +512,7 @@
             const y = r * Math.sin(latR);
             const z = r * Math.cos(latR) * Math.sin(lonR);
 
-            const tailLen = 10.0;
+            const tailLen = 40.0;//粒子尾巴长度
             const tLat = p.lat - v * speedScale * tailLen;
             const tLon = p.lon - u * speedScale * tailLen;
             const tLatR = tLat * Math.PI / 180;

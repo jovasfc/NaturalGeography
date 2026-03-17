@@ -84,7 +84,14 @@
             <button class="view-btn" data-target="earth" style="background: #3b82f6;">地球</button>
             <button class="view-btn" data-target="moon" style="background: #888;">月球</button>
         </div>
-        <button id="resetView" style="margin-top: 5px; background: #555;">重置视角</button>
+        <div style="margin-top: 10px;">
+            <label>黄赤交角: <input type="range" id="tiltRange" min="0" max="90" value="23.44" step="0.1"></label>
+            <span id="tiltValue" style="font-size: 12px; color: #4dabff;">23.44°</span>
+        </div>
+        <div style="margin-top: 10px;">
+            <button id="toggleZones" style="background: #9b59b6;">显示五带</button>
+        </div>
+        <button id="resetView" style="margin-top: 5px; background: #555;">重置</button>
     </div>
 
     <!-- Import Three.js -->
@@ -194,13 +201,15 @@
         controls.enableDamping = true;
 
         // --- Lighting ---
-        const ambientLight = new THREE.AmbientLight(0x333333); // Match gemini version
+        const ambientLight = new THREE.AmbientLight(0x666666); // 增加环境光亮度
         scene.add(ambientLight);
 
         // Sun Light (Point Light)
-        const sunLight = new THREE.PointLight(0xffffff, 2, 500); // Match gemini version
+        const sunLight = new THREE.PointLight(0xffffff, 3, 1000); // 增加光源强度和范围
         sunLight.position.set(0, 0, 0);
         sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048; // 提高阴影质量
+        sunLight.shadow.mapSize.height = 2048;
         scene.add(sunLight);
 
         // --- Objects ---
@@ -210,15 +219,7 @@
         const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffdd00 }); // Emissive look
         const sun = new THREE.Mesh(sunGeometry, sunMaterial);
         scene.add(sun);
-        // Sun glow (simple sprite)
-        const spriteMaterial = new THREE.SpriteMaterial({ 
-            map: new THREE.CanvasTexture(generateSprite()), 
-            color: 0xffaa00, 
-            blending: THREE.AdditiveBlending 
-        });
-        const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(15, 15, 1);
-        sun.add(sprite);
+        // Sun glow (simple sprite) - will be added after generateSprite is defined
 
         // 2. Orbit Path (Ellipse)
         const orbitCenterX = -4; // Shift orbit center (sqrt(40^2 - 39.8^2) ~ 4)
@@ -263,18 +264,44 @@
         // Load Texture
         const earthTexture = loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg');
         const earthGeometry = new THREE.SphereGeometry(config.earthSize, 32, 32);
-        // Use Phong for day/night shading
+        // Use Phong for day/night shading - 移除自发光，让阴影更明显
         const earthMaterial = new THREE.MeshPhongMaterial({ 
             map: earthTexture,
             specular: 0x333333,
-            shininess: 5,
-            emissive: 0x112244,
-            emissiveIntensity: 0.5
+            shininess: 5
         });
         const earth = new THREE.Mesh(earthGeometry, earthMaterial);
         earth.castShadow = true;
         earth.receiveShadow = true; // Self shadow for day/night
         earthTiltGroup.add(earth);
+        
+        // 添加昼夜半球效果 - 使用两个半球
+        // 创建半球几何体，phiLength = Math.PI 表示半个球
+        // 昼半球（面向太阳的一侧）- 白色半透明
+        const dayGeometry = new THREE.SphereGeometry(config.earthSize + 0.02, 32, 32, 0, Math.PI, 0, Math.PI);
+        const dayMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.FrontSide
+        });
+        const dayHemisphere = new THREE.Mesh(dayGeometry, dayMaterial);
+        earthSystemGroup.add(dayHemisphere); // 添加到earthSystemGroup，不随黄赤交角变化
+        
+        // 夜半球（背向太阳的一侧）- 黑色半透明
+        const nightGeometry = new THREE.SphereGeometry(config.earthSize + 0.02, 32, 32, 0, Math.PI, 0, Math.PI);
+        const nightMaterial = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.5,
+            side: THREE.FrontSide
+        });
+        const nightHemisphere = new THREE.Mesh(nightGeometry, nightMaterial);
+        earthSystemGroup.add(nightHemisphere); // 添加到earthSystemGroup，不随黄赤交角变化
+        
+        // 保存引用以便在动画中更新
+        earth.userData.dayHemisphere = dayHemisphere;
+        earth.userData.nightHemisphere = nightHemisphere;
 
         // Helper to create latitude rings
         function createLatitudeLine(latitudeDeg, color) {
@@ -300,11 +327,73 @@
         }
 
         // Add Tropics (Attach to Earth so they rotate with it)
-        const tropicCancer = createLatitudeLine(23.44, 0xffaa00); // Tropic of Cancer
+        let tropicCancer = createLatitudeLine(23.44, 0xffaa00); // Tropic of Cancer
         earth.add(tropicCancer);
         
-        const tropicCapricorn = createLatitudeLine(-23.44, 0xffaa00); // Tropic of Capricorn
+        let tropicCapricorn = createLatitudeLine(-23.44, 0xffaa00); // Tropic of Capricorn
         earth.add(tropicCapricorn);
+        
+        // 更新纬度线的函数
+        function updateLatitudeLines() {
+            // 移除旧的回归线
+            earth.remove(tropicCancer);
+            earth.remove(tropicCapricorn);
+            
+            // 创建新的回归线，根据当前黄赤交角
+            const tiltDeg = config.earthTilt * (180 / Math.PI);
+            tropicCancer = createLatitudeLine(tiltDeg, 0xffaa00);
+            tropicCapricorn = createLatitudeLine(-tiltDeg, 0xffaa00);
+            
+            earth.add(tropicCancer);
+            earth.add(tropicCapricorn);
+        }
+
+        // 创建五带几何体
+        let zonesGroup = new THREE.Group();
+        earth.add(zonesGroup);
+        zonesGroup.visible = false; // 初始隐藏
+        let zonesVisible = false;
+
+        function createZones() {
+            // 清除旧的五带
+            while(zonesGroup.children.length > 0) {
+                zonesGroup.remove(zonesGroup.children[0]);
+            }
+
+            // 五带定义（根据黄赤交角动态计算）
+            // 热带：赤道到黄赤交角（-tiltDeg到+tiltDeg）
+            // 温带：黄赤交角到90°-黄赤交角
+            // 寒带：90°-黄赤交角到90°
+            const tiltDeg = config.earthTilt * (180 / Math.PI);
+            const zones = [
+                { name: '热带', lat: 0, phiStart: (90 - tiltDeg) * (Math.PI / 180), phiLength: 2 * tiltDeg * (Math.PI / 180), color: 0xff0000, opacity: 0.25 },
+                { name: '北温带', lat: tiltDeg / 2, phiStart: tiltDeg * (Math.PI / 180), phiLength: (90 - 2 * tiltDeg) * (Math.PI / 180), color: 0xffaa00, opacity: 0.2 },
+                { name: '南温带', lat: -tiltDeg / 2, phiStart: (90 + tiltDeg) * (Math.PI / 180), phiLength: (90 - 2 * tiltDeg) * (Math.PI / 180), color: 0xffaa00, opacity: 0.2 },
+                { name: '北寒带', lat: (tiltDeg + 90) / 2, phiStart: 0, phiLength: tiltDeg * (Math.PI / 180), color: 0x0000ff, opacity: 0.2 },
+                { name: '南寒带', lat: -(tiltDeg + 90) / 2, phiStart: (180 - tiltDeg) * (Math.PI / 180), phiLength: tiltDeg * (Math.PI / 180), color: 0x0000ff, opacity: 0.2 }
+            ];
+
+            zones.forEach(zone => {
+                // 创建带状几何体
+                const zoneGeometry = new THREE.SphereGeometry(
+                    config.earthSize + 0.05, 
+                    32, 32, 
+                    0, Math.PI * 2, 
+                    zone.phiStart, 
+                    zone.phiLength
+                );
+                
+                const zoneMaterial = new THREE.MeshBasicMaterial({
+                    color: zone.color,
+                    transparent: true,
+                    opacity: zone.opacity,
+                    side: THREE.DoubleSide
+                });
+                
+                const zoneMesh = new THREE.Mesh(zoneGeometry, zoneMaterial);
+                zonesGroup.add(zoneMesh);
+            });
+        }
 
         // Earth Axis Line
         const axisGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -330,39 +419,49 @@
         // Direct Sunlight Arrow
         // This needs to be in the earthSystemGroup but NOT in the tilt group?
         // Or in the tilt group but rotated to point to sun?
-        // Let's put it in the earthTiltGroup so it moves with earth, but we update its orientation every frame.
+        // Let's put it in the earthSystemGroup so it doesn't rotate with earth tilt, but we update its orientation every frame.
         const arrowDir = new THREE.Vector3(1, 0, 0);
         const arrowOrigin = new THREE.Vector3(0, 0, 0); // Relative to Earth center
         const arrowLength = config.earthSize + 8; // Longer shaft
         const arrowColor = 0xff0000;
-        const sunlightArrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, arrowLength, arrowColor, 1.5, 0.8); // Smaller head: headLength, headWidth
-        earthTiltGroup.add(sunlightArrow); // We will update direction in animation loop
-        
-        // Sunlight Column (Cylinder)
-        const beamGeo = new THREE.CylinderGeometry(config.earthSize, config.earthSize, 10, 16, 1, true); // Columnar beam
-        // Actually, Sun is huge, so rays are parallel. Cylinder of radius = Earth radius?
-        // Let's make a beam representing "Direct Hit" zone or just a general sunlight direction.
-        // User asked for "Light Column illuminating day hemisphere".
-        // A yellow transparent cylinder pointing from Sun to Earth.
-        const beamMat = new THREE.MeshBasicMaterial({ 
-            color: 0xffffaa, 
-            transparent: true, 
-            opacity: 0.1, 
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
-        const sunBeam = new THREE.Mesh(beamGeo, beamMat);
-        // We will position and orient this in animate loop
-        // It should be attached to earthSystemGroup (no tilt) so it always points to Sun easily.
-        earthSystemGroup.add(sunBeam);
+        const sunlightArrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, arrowLength, arrowColor, 0.2, 0.1); // 进一步缩小箭头头部
+        earthSystemGroup.add(sunlightArrow); // 添加到earthSystemGroup，不随黄赤交角变化
 
         // Moon
         const moonGeometry = new THREE.SphereGeometry(config.moonSize, 16, 16);
-        const moonMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+        const moonMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x888888
+        });
         const moon = new THREE.Mesh(moonGeometry, moonMaterial);
         moon.castShadow = true;
         moon.receiveShadow = true;
+        
+        // 月球昼夜半球效果
+        // 昼半球
+        const moonDayGeometry = new THREE.SphereGeometry(config.moonSize + 0.01, 16, 16, 0, Math.PI, 0, Math.PI);
+        const moonDayMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.FrontSide
+        });
+        const moonDayHemisphere = new THREE.Mesh(moonDayGeometry, moonDayMaterial);
+        moon.add(moonDayHemisphere);
+        
+        // 夜半球
+        const moonNightGeometry = new THREE.SphereGeometry(config.moonSize + 0.01, 16, 16, 0, Math.PI, 0, Math.PI);
+        const moonNightMaterial = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.FrontSide
+        });
+        const moonNightHemisphere = new THREE.Mesh(moonNightGeometry, moonNightMaterial);
+        moon.add(moonNightHemisphere);
+        
+        // 保存引用
+        moon.userData.dayHemisphere = moonDayHemisphere;
+        moon.userData.nightHemisphere = moonNightHemisphere;
         
         const moonOrbitGroup = new THREE.Group(); // To handle moon orbit around earth
         earthSystemGroup.add(moonOrbitGroup);
@@ -534,6 +633,16 @@
             return canvas;
         }
 
+        // Add Sun glow sprite after generateSprite is defined
+        const spriteMaterial = new THREE.SpriteMaterial({ 
+            map: new THREE.CanvasTexture(generateSprite()), 
+            color: 0xffaa00, 
+            blending: THREE.AdditiveBlending 
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(15, 15, 1);
+        sun.add(sprite);
+
         function updateLabels() {
             termsObjects.forEach(item => {
                 if (termDisplayMode === 0) { // All
@@ -636,40 +745,41 @@
                 // Origin is slightly above earth surface
                 const surfacePoint = localSunDir.clone().multiplyScalar(config.earthSize);
                 
-                // We want arrow pointing AT the surface.
-                // So Arrow Position = Surface Point + Offset outwards.
-                // Arrow Direction = -localSunDir (inwards).
+                // 红色箭头不随黄赤交角变化，只指向太阳方向
                 // Use longer arrow length defined earlier (config.earthSize + 8)
                 const arrowTotalLen = config.earthSize + 8;
-                const arrowPos = localSunDir.clone().multiplyScalar(arrowTotalLen);
+                const arrowPos = sunDir.clone().multiplyScalar(arrowTotalLen);
                 sunlightArrow.position.copy(arrowPos);
-                sunlightArrow.setDirection(localSunDir.clone().negate());
-                // No need to set length every frame unless scaling, but good to be safe if we change it dynamically
-                sunlightArrow.setLength(arrowTotalLen - config.earthSize, 1.5, 0.8); 
+                sunlightArrow.setDirection(sunDir.clone().negate());
+                sunlightArrow.setLength(arrowTotalLen - config.earthSize, 0.2, 0.1); 
 
-                // Update Night Hemisphere Shadow
-                // Rotate the night hemisphere to face away from the sun
-                // The hemisphere should have its "open" side pointing towards the sun
-                // so the dark side is on the night side
+                // Update Earth Day/Night Hemispheres
+                // 计算太阳方向并更新昼夜半球朝向
+                if (earth.userData.dayHemisphere && earth.userData.nightHemisphere) {
+                    // sunDir指向太阳，我们需要让昼半球面向太阳
+                    // 使用lookAt让昼半球指向太阳方向
+                    const sunPosition = new THREE.Vector3(0, 0, 0);
+                    const earthPosition = earthSystemGroup.position;
+                    
+                    // 昼半球应该面向太阳，所以在地球坐标系中指向太阳
+                    // 太阳在(0,0,0)，地球在earthPosition，所以太阳方向是 -earthPosition
+                    earth.userData.dayHemisphere.lookAt(sunPosition);
+                    
+                    // 夜半球背向太阳（旋转180度）
+                    earth.userData.nightHemisphere.lookAt(sunPosition);
+                    earth.userData.nightHemisphere.rotateY(Math.PI);
+                }
 
-                // Update Sun Beam
-                // Beam is in earthSystemGroup (untilted relative to orbit plane).
-                // It should point from Sun (remote) to Earth (0,0,0 local).
-                // Actually, let's make it point from Earth towards Sun.
-                // Position: Offset towards sun by half length.
-                // sunDir is Vector pointing TO Sun.
-                // Beam length 10.
-                const beamLen = 10;
-                const beamPos = sunDir.clone().multiplyScalar(config.earthSize + beamLen/2);
-                sunBeam.position.copy(beamPos);
-                // Align cylinder Y axis with sunDir
-                // Default cylinder is Y-up.
-                // Quaternion from Y-up to sunDir.
-                sunBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir);
-                // Rotate beam 90 deg so wide end faces Earth? 
-                // Cylinder Geometry: Top radius 0.5, Bottom 2.
-                // If Y axis points to Sun: Top is at Sun side, Bottom at Earth side.
-                // So Wide end is at Earth. Correct.
+                // Update Moon Day/Night Hemispheres
+                if (moon.userData.dayHemisphere && moon.userData.nightHemisphere) {
+                    // 月球也需要面向太阳
+                    const sunPosition = new THREE.Vector3(0, 0, 0);
+                    
+                    moon.userData.dayHemisphere.lookAt(sunPosition);
+                    moon.userData.nightHemisphere.lookAt(sunPosition);
+                    moon.userData.nightHemisphere.rotateY(Math.PI);
+                }
+
             }
 
             // Update camera target based on view center
@@ -717,19 +827,13 @@
             earthSystemGroup.position.set(x, 0, z);
 
             // Update Sunlight Arrow
+            // 红色箭头不随黄赤交角变化，只指向太阳方向
             const sunDir = new THREE.Vector3(-x, 0, -z).normalize();
-            const localSunDir = sunDir.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), config.earthTilt);
             const arrowTotalLen = config.earthSize + 8;
-            const arrowPos = localSunDir.clone().multiplyScalar(arrowTotalLen);
+            const arrowPos = sunDir.clone().multiplyScalar(arrowTotalLen);
             sunlightArrow.position.copy(arrowPos);
-            sunlightArrow.setDirection(localSunDir.clone().negate());
-            sunlightArrow.setLength(arrowTotalLen - config.earthSize, 1.5, 0.8);
-
-            // Update Sun Beam
-            const beamLen = 10;
-            const beamPos = sunDir.clone().multiplyScalar(config.earthSize + beamLen/2);
-            sunBeam.position.copy(beamPos);
-            sunBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir);
+            sunlightArrow.setDirection(sunDir.clone().negate());
+            sunlightArrow.setLength(arrowTotalLen - config.earthSize, 0.2, 0.1);
         }
 
         document.querySelectorAll('.pos-btn').forEach(btn => {
@@ -738,6 +842,32 @@
                 const rad = angleDeg * (Math.PI / 180);
                 orbitAngle = rad;
                 isPaused = true; // Pause to let user see
+                
+                // 调整地球自转，使昼半球朝向太阳
+                // 根据节气设置地球的自转角度
+                // 冬至(0°): 北半球背离太阳，南极朝向太阳
+                // 春分(90°): 昼夜平分
+                // 夏至(180°): 北半球朝向太阳
+                // 秋分(270°): 昼夜平分
+                
+                // 计算使昼半球朝向太阳的自转角度
+                // 地球自转轴倾斜，需要根据黄赤交角调整
+                const tiltRad = config.earthTilt;
+                
+                if (angleDeg === 0) {
+                    // 冬至: 南极朝向太阳，北半球为夜
+                    earth.rotation.y = Math.PI;
+                } else if (angleDeg === 90) {
+                    // 春分: 昼夜平分
+                    earth.rotation.y = Math.PI / 2;
+                } else if (angleDeg === 180) {
+                    // 夏至: 北极朝向太阳，北半球为昼
+                    earth.rotation.y = 0;
+                } else if (angleDeg === 270) {
+                    // 秋分: 昼夜平分
+                    earth.rotation.y = -Math.PI / 2;
+                }
+                
                 updateEarthPosition(); // Force update immediately
                 
                 // If zoomed in, we need to update camera target too?
@@ -764,6 +894,35 @@
             controls.update();
             isZoomedIn = false;
             viewCenter = 'sun';
+            
+            // 恢复黄赤交角为23.44°
+            config.earthTilt = 23.44 * (Math.PI / 180);
+            earthTiltGroup.rotation.z = -config.earthTilt;
+            
+            // 更新滑动条和显示值
+            const tiltRange = document.getElementById('tiltRange');
+            const tiltValue = document.getElementById('tiltValue');
+            tiltRange.value = 23.5;
+            tiltValue.textContent = '23.50°';
+            
+            // 更新回归线
+            updateLatitudeLines();
+        });
+
+        // 五带切换按钮
+        document.getElementById('toggleZones').addEventListener('click', () => {
+            zonesVisible = !zonesVisible;
+            zonesGroup.visible = zonesVisible;
+            
+            // 更新按钮样式
+            const btn = document.getElementById('toggleZones');
+            if (zonesVisible) {
+                btn.style.background = '#9b59b6';
+                btn.textContent = '隐藏五带';
+            } else {
+                btn.style.background = '#555';
+                btn.textContent = '显示五带';
+            }
         });
 
         // View center buttons
@@ -790,8 +949,32 @@
             });
         });
 
+        // 黄赤交角调节
+        const tiltRange = document.getElementById('tiltRange');
+        const tiltValue = document.getElementById('tiltValue');
+        
+        tiltRange.addEventListener('input', (e) => {
+            const tiltDegrees = parseFloat(e.target.value);
+            tiltValue.textContent = tiltDegrees.toFixed(2) + '°';
+            
+            // 更新配置中的黄赤交角
+            config.earthTilt = tiltDegrees * (Math.PI / 180);
+            
+            // 更新地球倾斜组的旋转
+            earthTiltGroup.rotation.z = -config.earthTilt;
+            
+            // 更新热带和极圈线
+            updateLatitudeLines();
+            
+            // 更新五带
+            createZones();
+        });
+
         // Initialize Labels
         updateLabels();
+        
+        // 创建五带
+        createZones();
 
         // Start
         animate();
