@@ -262,6 +262,13 @@
                     </div>
                     <input type="range" id="tiltRange" min="0" max="90" value="23.44" step="0.1">
                 </div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>红色点纬度</span>
+                        <span id="redPointLatValue">0°</span>
+                    </div>
+                    <input type="range" id="redPointLatRange" min="-90" max="90" value="0" step="1">
+                </div>
             </div>
 
             <!-- 显示选项 -->
@@ -498,6 +505,24 @@
         // 保存引用以便在动画中更新
         earth.userData.dayHemisphere = dayHemisphere;
         earth.userData.nightHemisphere = nightHemisphere;
+
+        // 添加红色标记点
+        const redPointGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+        const redPointMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const redPoint = new THREE.Mesh(redPointGeometry, redPointMaterial);
+        earth.add(redPoint);
+        earth.userData.redPoint = redPoint;
+
+        // 更新红色点位置的函数
+        function updateRedPointPosition(latitudeDeg) {
+            const latRad = latitudeDeg * (Math.PI / 180);
+            const r = config.earthSize * Math.cos(latRad);
+            const y = config.earthSize * Math.sin(latRad);
+            redPoint.position.set(r, y, 0);
+        }
+        
+        // 初始化红色点位置（纬度为0）
+        updateRedPointPosition(0);
 
         // Helper to create latitude rings
         function createLatitudeLine(latitudeDeg, color) {
@@ -1141,6 +1166,13 @@
             
             // 更新回归线
             updateLatitudeLines();
+            
+            // 重置红色点纬度为0°
+            const redPointLatRange = document.getElementById('redPointLatRange');
+            const redPointLatValue = document.getElementById('redPointLatValue');
+            redPointLatRange.value = 0;
+            redPointLatValue.textContent = '0°';
+            updateRedPointPosition(0);
         });
 
         // 五带切换按钮
@@ -1219,6 +1251,18 @@
             
             // 更新五带
             createZones();
+        });
+
+        // 红色点纬度调节
+        const redPointLatRange = document.getElementById('redPointLatRange');
+        const redPointLatValue = document.getElementById('redPointLatValue');
+        
+        redPointLatRange.addEventListener('input', (e) => {
+            const latitude = parseFloat(e.target.value);
+            redPointLatValue.textContent = latitude.toFixed(0) + '°';
+            
+            // 更新红色点位置
+            updateRedPointPosition(latitude);
         });
 
         // 公转速度调节

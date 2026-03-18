@@ -643,7 +643,7 @@
                 <div class="info-panel">
                     <h4>天体位置信息</h4>
                     <div class="info-item">
-                        <span>日期：</span><span id="infoDate">1月1日（农历1月）</span>
+                        <span>日期：</span><span id="infoDate">1月1日（农历正月）</span>
                     </div>
                     <div class="info-item">
                         <span>太阳高度角：</span><span id="infoAltitude">45°</span>
@@ -840,7 +840,7 @@
                     </div>
                     <div class="data-item">
                         <span class="data-label">日期：</span>
-                        <span class="data-value" id="currentDate">1月1日（农历1月）</span>
+                        <span class="data-value" id="currentDate">1月1日（农历正月）</span>
                     </div>
                     <div class="data-item">
                         <span class="data-label">太阳直射点纬度：</span>
@@ -2394,6 +2394,19 @@
             return lunarDayNames[day - 1];
         }
         
+        function getLunarMonthString(month) {
+            if (month <= 0 || month > 12) {
+                return "正月";
+            }
+            
+            const lunarMonthNames = [
+                "正月", "二月", "三月", "四月", "五月", "六月",
+                "七月", "八月", "九月", "十月", "冬月", "腊月"
+            ];
+            
+            return lunarMonthNames[month - 1];
+        }
+        
         // 根据一年中的第几天获取月份和日期
         function getMonthAndDayFromDayOfYear(dayOfYear) {
             // 假设非闰年
@@ -2427,7 +2440,7 @@
                     const lunar = Lunar.fromDate(solarDate);
                     const lunarMonth = lunar.getMonth();
                     const lunarDay = lunar.getDay();
-                    lunarStr = `农历${lunarMonth}月${getLunarDayString(lunarDay)}`;
+                    lunarStr = `农历${getLunarMonthString(lunarMonth)}${getLunarDayString(lunarDay)}`;
                 } catch (e) {
                     // 如果库未加载，使用备用方法
                     const moonPhaseInfo = calculateMoonPhase(params.moonPhase);
@@ -2454,7 +2467,12 @@
             
             // 更新文本
             document.getElementById('moonPhase3DName').textContent = moonPhase.name;
-            document.getElementById('moonPhase3DAge').textContent = `农历: ${moonPhase.lunarDay}`;
+            // 使用与太阳数据一致的农历显示方式
+            const dateString = getDateStringFromDayOfYear(params.dayOfYear);
+            // 从日期字符串中提取农历部分
+            const lunarMatch = dateString.match(/（农历(.+)）/);
+            const lunarStr = lunarMatch ? lunarMatch[1] : moonPhase.lunarDay;
+            document.getElementById('moonPhase3DAge').textContent = `农历: ${lunarStr}`;
             
             // 计算太阳相对于月球的角度（从地球视角）
             // 0°: 新月（太阳在月球后面）
@@ -2838,7 +2856,11 @@
             
             document.getElementById('dataMoonPhase').textContent = moonPhase.name;
             document.getElementById('infoMoonPhase').textContent = moonPhase.name;
-            document.getElementById('dataMoonAge').textContent = `${moonPhase.lunarDay}`;
+            // 使用与太阳数据一致的农历显示方式
+            const dateString = getDateStringFromDayOfYear(params.dayOfYear);
+            const lunarMatch = dateString.match(/（农历(.+)）/);
+            const lunarStr = lunarMatch ? lunarMatch[1] : moonPhase.lunarDay;
+            document.getElementById('dataMoonAge').textContent = lunarStr;
             document.getElementById('moonElongation').textContent = `${moonPhase.elongation.toFixed(1)}°`;
             
             // 月球轨道倾角显示
@@ -2868,9 +2890,12 @@
             document.getElementById('timeValue').textContent = timeStr;
             document.getElementById('currentTime').textContent = `当前时间：${timeStr}`;
             
-            // 月相显示 - 改为农历显示
+            // 月相显示 - 改为农历显示，使用与太阳数据一致的农历显示方式
             const moonPhase = calculateMoonPhase(params.moonPhase);
-            document.getElementById('moonPhaseValue').textContent = `农历${moonPhase.lunarDay}`;
+            const dateString = getDateStringFromDayOfYear(params.dayOfYear);
+            const lunarMatch = dateString.match(/（农历(.+)）/);
+            const lunarStr = lunarMatch ? lunarMatch[1] : moonPhase.lunarDay;
+            document.getElementById('moonPhaseValue').textContent = `农历${lunarStr}`;
             
             // 更新月亮图标
             const moonIcon = document.getElementById('moon-icon');
