@@ -277,6 +277,7 @@
                 <div class="btn-row">
                     <button id="toggleZones" style="background: #9b59b6;">五带</button>
                     <button id="toggleEcliptic" style="background: #e67e22;">黄道面</button>
+                    <button id="toggleRedPointLatLine" style="background: #e74c3c;">纬线</button>
                 </div>
             </div>
 
@@ -523,6 +524,25 @@
         
         // 初始化红色点位置（纬度为0）
         updateRedPointPosition(0);
+
+        // 添加红点所在纬线
+        let redPointLatLine = createLatitudeLine(0, 0xff0000);
+        earth.add(redPointLatLine);
+        redPointLatLine.visible = true; // 默认显示
+
+        // 更新红点纬线位置的函数
+        function updateRedPointLatLine(latitudeDeg) {
+            // 移除旧的纬线
+            earth.remove(redPointLatLine);
+            
+            // 创建新的纬线
+            redPointLatLine = createLatitudeLine(latitudeDeg, 0xff0000);
+            redPointLatLine.visible = redPointLatLineVisible;
+            earth.add(redPointLatLine);
+        }
+
+        // 纬线显示状态
+        let redPointLatLineVisible = true;
 
         // Helper to create latitude rings
         function createLatitudeLine(latitudeDeg, color) {
@@ -1173,6 +1193,7 @@
             redPointLatRange.value = 0;
             redPointLatValue.textContent = '0°';
             updateRedPointPosition(0);
+            updateRedPointLatLine(0);
         });
 
         // 五带切换按钮
@@ -1205,6 +1226,22 @@
             } else {
                 btn.style.background = '#555';
                 btn.textContent = '黄道面';
+            }
+        });
+
+        // 红点纬线切换按钮
+        document.getElementById('toggleRedPointLatLine').addEventListener('click', () => {
+            redPointLatLineVisible = !redPointLatLineVisible;
+            redPointLatLine.visible = redPointLatLineVisible;
+            
+            // 更新按钮样式
+            const btn = document.getElementById('toggleRedPointLatLine');
+            if (redPointLatLineVisible) {
+                btn.style.background = '#e74c3c';
+                btn.textContent = '纬线';
+            } else {
+                btn.style.background = '#555';
+                btn.textContent = '纬线';
             }
         });
 
@@ -1263,6 +1300,9 @@
             
             // 更新红色点位置
             updateRedPointPosition(latitude);
+            
+            // 更新红点纬线位置
+            updateRedPointLatLine(latitude);
         });
 
         // 公转速度调节
