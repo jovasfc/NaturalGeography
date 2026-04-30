@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>赤道式日晷 · 全天日影对比 (高度降低20%)</title>
+  <title>赤道式日晷 · 全天日影对比 </title>
   <style>
     :root {
       --bg: #1a1a2e;
@@ -60,6 +60,10 @@
       background: var(--accent); border: 2px solid #fff; cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
+    .ctrl-group input[type="color"] {
+      width: 28px; height: 22px; border: 1px solid var(--border); border-radius: 4px;
+      background: none; cursor: pointer; padding: 0; vertical-align: middle;
+    }
     .btn-row { display: flex; gap: 7px; flex-wrap: wrap; }
     .btn {
       flex: 1; min-width: 60px; padding: 8px 6px; border-radius: 8px;
@@ -100,7 +104,7 @@
       <input type="range" id="hour-angle" min="-180" max="180" value="0" step="0.5">
     </div>
     <div class="ctrl-group">
-      <label>🌞 赤纬 <span class="val" id="dec-val">0°</span></label>
+      <label>🌞 赤纬(直射点纬度) <span class="val" id="dec-val">0°</span></label>
       <input type="range" id="declination" min="-23.5" max="23.5" value="0" step="0.5">
     </div>
     <div class="ctrl-group">
@@ -112,6 +116,9 @@
       <button class="btn active" id="btn-both">日晷+立杆</button>
       <button class="btn" id="btn-sundial">仅日晷</button>
       <button class="btn accent2" id="btn-pole">仅立杆</button>
+      <button class="btn active" id="btn-old-path">📍 地面中心</button>
+      <button class="btn" id="btn-new-path">📍 日晷中心</button>
+      <button class="btn" id="btn-time-marks">🕐 时间点</button>
     </div>
     <div class="btn-row">
       <button class="btn" id="btn-sunrise">🌅 日出</button>
@@ -122,13 +129,23 @@
       <button class="btn" id="btn-globe">🌍 地球仪</button>
       <button class="btn" id="btn-globe-texture">🗺️ 地球纹理</button>
       <button class="btn" id="btn-sun-point">☀️ 直射点</button>
+      <button class="btn" id="btn-sun-arrow">➡️ 太阳光</button>
       <button class="btn" id="btn-ground-shadow">🌑 地面挡光</button>
+    </div>
+    <div class="btn-row">
       <button class="btn" id="btn-auto-play">▶ 自动播放</button>
       <button class="btn" id="btn-globe-rotate">🔄 地球自转</button>
     </div>
     <div class="ctrl-group">
-      <label>🌍 地球仪透明度 <span class="val" id="globe-opacity-val">0.4</span></label>
-      <input type="range" id="globe-opacity" min="0.1" max="1.0" value="0.4" step="0.1">
+      <label>🌍 地球仪透明度 <span class="val" id="globe-opacity-val">0.60</span></label>
+      <input type="range" id="globe-opacity" min="0.05" max="1.0" value="0.6" step="0.01">
+    </div>
+    <div class="ctrl-group">
+      <label>🎨 轨迹颜色 地上 <input type="color" id="path-color-above" value="#ffcc66"> 地下/时间点 <input type="color" id="path-color-below" value="#ff8844"></label>
+    </div>
+    <div class="ctrl-group">
+      <label>📏 轨迹粗细 <span class="val" id="path-width-val">3</span></label>
+      <input type="range" id="path-width" min="1" max="10" value="3" step="0.5">
     </div>
     <div class="legend">
       🖱️ 拖拽旋转视角 · 滚轮缩放 · 右键平移<br>
@@ -144,6 +161,9 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { Line2 } from 'three/addons/lines/Line2.js';
+    import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+    import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 
     // ---------- DOM ----------
     const container = document.getElementById('canvas-container');
@@ -175,7 +195,15 @@
     const btnGlobeTexture = document.getElementById('btn-globe-texture');
     const btnGlobeRotate = document.getElementById('btn-globe-rotate');
     const btnSunPoint = document.getElementById('btn-sun-point');
+    const btnSunArrow = document.getElementById('btn-sun-arrow');
     const btnGroundShadow = document.getElementById('btn-ground-shadow');
+    const btnOldPath = document.getElementById('btn-old-path');
+    const btnNewPath = document.getElementById('btn-new-path');
+    const btnTimeMarks = document.getElementById('btn-time-marks');
+    const pathColorAbove = document.getElementById('path-color-above');
+    const pathColorBelow = document.getElementById('path-color-below');
+    const sliderPathWidth = document.getElementById('path-width');
+    const pathWidthVal = document.getElementById('path-width-val');
 
     // ---------- 状态 ----------
     let latitude = 35;
@@ -189,14 +217,22 @@
     let showGlobe = false;
     let showGlobeRotate = false;
     let showSunPoint = false;
+    let showSunArrow = false;
     let showGroundShadow = false;
+    let showOldPath = true;
+    let showNewPath = false;
+    let showTimeMarks = false;
+    let pathWidth = 3;
+    let sunTimeMode = 'free'; // 'free', 'sunrise', 'noon', 'sunset'
     let globeRotationAngle = 0;
     let globeOpacity = 0.6;
     // 状态记忆变量
     let prevGlobeTextureState = false;
     let prevSunPointState = false;
     let prevGlobeRotateState = false;
+    let prevSunArrowState = false;
     let polaris, polarisLabel;
+    let sunInfoLabel = null;
 
     // ---------- Three.js 初始化 ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -838,6 +874,223 @@
     sunMarker.receiveShadow = false;
     pathGroup.add(sunMarker);
 
+    // 太阳-直射点连线箭头
+    const sunArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 0, 0),
+      1,
+      0xff8800,
+      0.6,
+      0.3
+    );
+    sunArrow.visible = false;
+    scene.add(sunArrow);
+
+    // ---------- 新太阳轨迹（以日晷中心为圆心）----------
+    const newPathGroup = new THREE.Group();
+    scene.add(newPathGroup);
+
+    // 虚拟地面（日晷中心模式下显示）
+    const virtualGround = new THREE.Mesh(
+      new THREE.CircleGeometry(15, 64),
+      new THREE.MeshBasicMaterial({ color: 0x4488aa, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false })
+    );
+    virtualGround.rotation.x = -Math.PI / 2;
+    virtualGround.position.y = baseHeight + axisHeight;
+    virtualGround.visible = false;
+    scene.add(virtualGround);
+
+    function updateVirtualGround() {
+      virtualGround.visible = showNewPath;
+    }
+
+    function createFatLine(points, color, opacity, dashed, dashSize, gapSize) {
+      const positions = [];
+      points.forEach(p => positions.push(p.x, p.y, p.z));
+      const geo = new LineGeometry();
+      geo.setPositions(positions);
+      const mat = new LineMaterial({
+        color: new THREE.Color(color),
+        linewidth: pathWidth,
+        transparent: true,
+        opacity: opacity,
+        depthTest: true,
+        dashed: !!dashed,
+        dashScale: 1,
+        dashSize: dashSize || 1,
+        gapSize: gapSize || 0.5,
+        resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)
+      });
+      const line = new Line2(geo, mat);
+      line.computeLineDistances();
+      line.renderOrder = 2;
+      return line;
+    }
+
+    // 时间节点
+    const hourDotGeo = new THREE.SphereGeometry(0.12, 8, 8);
+    const halfHourDotGeo = new THREE.SphereGeometry(0.06, 6, 6);
+
+    function createTimeLabel(text, pos) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = pathColorBelow.value;
+      ctx.font = 'bold 36px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, 64, 32);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;
+      const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.position.copy(pos);
+      sprite.position.y += 0.35;
+      sprite.scale.set(1.2, 0.6, 1);
+      sprite.renderOrder = 4;
+      return sprite;
+    }
+
+    function calcSunPosOnPath(haDeg, offset) {
+      const sunPos = getSunPosition(latitude, haDeg, declination);
+      const alt = sunPos.altDeg * Math.PI / 180;
+      const azRad = sunPos.azRad;
+      const cosAlt = Math.cos(alt);
+      const r = 11;
+      return new THREE.Vector3(
+        r * Math.sin(azRad) * cosAlt + offset.x,
+        r * Math.sin(alt) + offset.y,
+        -r * Math.cos(azRad) * cosAlt + offset.z
+      );
+    }
+
+    function addTimeMarksToGroup(group, offset) {
+      if (!showTimeMarks) return;
+      const phi = latitude * Math.PI / 180;
+      const delta = declination * Math.PI / 180;
+      const cosH0 = -Math.tan(phi) * Math.tan(delta);
+      let Hmax = Math.PI;
+      if (cosH0 < -1) Hmax = Math.PI;
+      else if (cosH0 > 1) Hmax = 0;
+      else Hmax = Math.acos(cosH0);
+      Hmax = Math.min(Hmax, Math.PI * 0.98);
+
+      for (let h = 0; h <= 24; h++) {
+        const haDeg = (h - 12) * 15;
+        if (Math.abs(haDeg) > Hmax * 180 / Math.PI + 0.5) continue;
+        const pos = calcSunPosOnPath(haDeg, offset);
+        const dot = new THREE.Mesh(hourDotGeo, new THREE.MeshBasicMaterial({ color: pathColorBelow.value }));
+        dot.position.copy(pos);
+        dot.renderOrder = 3;
+        group.add(dot);
+
+        const label = createTimeLabel(h + '时', pos);
+        group.add(label);
+
+        if (h < 24) {
+          const haDegHalf = haDeg + 7.5;
+          if (Math.abs(haDegHalf) > Hmax * 180 / Math.PI + 0.5) continue;
+          const halfPos = calcSunPosOnPath(haDegHalf, offset);
+          const halfDot = new THREE.Mesh(halfHourDotGeo, new THREE.MeshBasicMaterial({ color: pathColorBelow.value, transparent: true, opacity: 0.7 }));
+          halfDot.position.copy(halfPos);
+          halfDot.renderOrder = 3;
+          group.add(halfDot);
+        }
+      }
+    }
+
+    const newSunBall = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.6 })
+    );
+    newSunBall.castShadow = false;
+    newSunBall.receiveShadow = false;
+    newSunBall.visible = false;
+    newPathGroup.add(newSunBall);
+
+    function updateNewSunPath() {
+      while (newPathGroup.children.length > 1) {
+        newPathGroup.remove(newPathGroup.children.find(c => c !== newSunBall));
+      }
+
+      const phi = latitude * Math.PI / 180;
+      const delta = declination * Math.PI / 180;
+      const cosH0 = -Math.tan(phi) * Math.tan(delta);
+      let Hmax = Math.PI;
+      if (cosH0 < -1) Hmax = Math.PI;
+      else if (cosH0 > 1) Hmax = 0;
+      else Hmax = Math.acos(cosH0);
+      Hmax = Math.min(Hmax, Math.PI * 0.98);
+
+      const sundialCenter = new THREE.Vector3(0, baseHeight + axisHeight, 0);
+      const r = 11;
+
+      const pts = [];
+      for (let i = 0; i <= 240; i++) {
+        const H = -Hmax + (2 * Hmax * i) / 240;
+        const sunPos = getSunPosition(latitude, H * 180 / Math.PI, declination);
+        const alt = sunPos.altDeg * Math.PI / 180;
+        const azRad = sunPos.azRad;
+        const cosAlt = Math.cos(alt);
+        const x = r * Math.sin(azRad) * cosAlt;
+        const y = r * Math.sin(alt);
+        const z = -r * Math.cos(azRad) * cosAlt;
+        pts.push(new THREE.Vector3(x + sundialCenter.x, y + sundialCenter.y, z + sundialCenter.z));
+      }
+
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const curvePts = curve.getPoints(400);
+      const above = [], below = [];
+      curvePts.forEach(p => (p.y >= sundialCenter.y - 0.05 ? above : below).push(p.clone()));
+
+      if (above.length > 1) {
+        const line = createFatLine(above, pathColorAbove.value, 0.5, true, 0.4, 0.4);
+        newPathGroup.add(line);
+      }
+      if (below.length > 1) {
+        const belowLine = createFatLine(below, pathColorBelow.value, 0.3, true, 0.4, 0.4);
+        newPathGroup.add(belowLine);
+      }
+
+      // 更新新太阳小球位置
+      const sunData = getSunPosition(latitude, hourAngle, declination);
+      const alt = sunData.altDeg * Math.PI / 180;
+      const azRad = sunData.azRad;
+      const cosAlt = Math.cos(alt);
+      newSunBall.position.set(
+        r * Math.sin(azRad) * cosAlt + sundialCenter.x,
+        r * Math.sin(alt) + sundialCenter.y,
+        -r * Math.cos(azRad) * cosAlt + sundialCenter.z
+      );
+
+      newPathGroup.visible = showNewPath;
+      newSunBall.visible = showNewPath;
+
+      if (showNewPath) {
+        addTimeMarksToGroup(newPathGroup, sundialCenter);
+      }
+    }
+
+    function updateSunArrow() {
+      if (!showSunArrow || !showGlobe || !showSunPoint || !sunPointMesh || !showNewPath) {
+        sunArrow.visible = false;
+        return;
+      }
+      const start = newSunBall.position.clone();
+      const end = new THREE.Vector3();
+      sunPointMesh.getWorldPosition(end);
+      const dir = end.clone().sub(start);
+      const length = dir.length();
+      if (length < 0.01) {
+        sunArrow.visible = false;
+        return;
+      }
+      dir.normalize();
+      sunArrow.position.copy(start);
+      sunArrow.setDirection(dir);
+      sunArrow.setLength(length, Math.min(0.6, length * 0.2), Math.min(0.3, length * 0.1));
+      sunArrow.visible = true;
+    }
+
     function updateSunPath() {
       // 保存太阳标记点
       const marker = pathGroup.children.find(child => child === sunMarker);
@@ -878,13 +1131,19 @@
       const above = [], below = [];
       curvePts.forEach(p => (p.y >= -0.05 ? above : below).push(p.clone()));
       if (above.length > 1) {
-        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(above), new THREE.LineBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.55, depthTest: true }));
-        line.renderOrder = 2; pathGroup.add(line);
+        const line = createFatLine(above, pathColorAbove.value, 0.55, false);
+        pathGroup.add(line);
       }
       if (below.length > 1) {
-        const belowLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(below), new THREE.LineDashedMaterial({ color: 0xff8844, transparent: true, opacity: 0.35, dashSize: 0.6, gapSize: 0.6, depthTest: true }));
-        belowLine.computeLineDistances();
-        belowLine.renderOrder = 2; pathGroup.add(belowLine);
+        const belowLine = createFatLine(below, pathColorBelow.value, 0.35, true, 0.6, 0.6);
+        pathGroup.add(belowLine);
+      }
+      
+      pathGroup.visible = showOldPath;
+      sunMarker.visible = showOldPath;
+
+      if (showOldPath) {
+        addTimeMarksToGroup(pathGroup, new THREE.Vector3(0, 0, 0));
       }
     }
 
@@ -899,17 +1158,14 @@
         const alt = delta;
         let sinAz, cosAz;
         
-        // 在极地，太阳方位角由时角决定
-        // 北极：方位角 = 180° - 时角（南=0°，顺时针）
-        // 南极：方位角 = 时角（北=0°，顺时针）
         if (latDeg >= 0) {
-          // 北极
-          sinAz = Math.sin(Math.PI - H);
-          cosAz = Math.cos(Math.PI - H);
+          // 北极：azRad = π + H（正午在南，6时在东，18时在西）
+          sinAz = Math.sin(Math.PI + H);
+          cosAz = Math.cos(Math.PI + H);
         } else {
-          // 南极
-          sinAz = Math.sin(H);
-          cosAz = Math.cos(H);
+          // 南极：azRad = -H（正午在北，6时在东，18时在西）
+          sinAz = Math.sin(-H);
+          cosAz = Math.cos(-H);
         }
         
         return { 
@@ -1028,22 +1284,64 @@
       const minutes = Math.round((solarTime-hours)*60);
       hours = ((hours%24)+24)%24;
       timeDisplay.textContent = `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')} 太阳时`;
+
+      // 更新太阳信息标签
+      if (sunInfoLabel) {
+        scene.remove(sunInfoLabel);
+        sunInfoLabel = null;
+      }
+      if (sunTimeMode !== 'free' && above) {
+        let azDeg = azRad * 180/Math.PI;
+        if (azDeg < 0) azDeg += 360;
+        let modeText = '';
+        if (sunTimeMode === 'sunrise') modeText = '日出';
+        else if (sunTimeMode === 'sunset') modeText = '日落';
+        else if (sunTimeMode === 'noon') modeText = '正午';
+        const infoText = modeText + ' ' + String(hours).padStart(2,'0') + ':' + String(minutes).padStart(2,'0') + ' 方位' + azDeg.toFixed(1) + '°';
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffee88';
+        ctx.font = 'bold 32px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(infoText, 256, 32);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
+        sunInfoLabel = new THREE.Sprite(mat);
+        const labelPos = showNewPath ? newSunBall.position.clone() : markerPos.clone();
+        sunInfoLabel.position.copy(labelPos);
+        sunInfoLabel.position.y += 0.8;
+        sunInfoLabel.scale.set(4, 0.5, 1);
+        sunInfoLabel.renderOrder = 999;
+        scene.add(sunInfoLabel);
+      }
     }
 
     function updateVisibility() {
       sundialGroup.visible = (displayMode==='sundial'||displayMode==='both');
       poleGroup.visible = (displayMode==='pole'||displayMode==='both');
-      if (displayMode==='sundial') { labelSprite.visible=true; poleLabelSprite.visible=false; }
-      else if (displayMode==='pole') { labelSprite.visible=false; poleLabelSprite.visible=true; }
-      else { labelSprite.visible=true; poleLabelSprite.visible=true; }
+      if (displayMode==='pole') {
+        labelSprite.visible=false; poleLabelSprite.visible=true;
+        poleGroup.position.set(0, 0, 0);
+      } else if (displayMode==='sundial') {
+        labelSprite.visible=true; poleLabelSprite.visible=false;
+        poleGroup.position.set(5.5, 0, 0);
+      } else {
+        labelSprite.visible=true; poleLabelSprite.visible=true;
+        poleGroup.position.set(5.5, 0, 0);
+      }
     }
 
     function refreshAll() {
       updateAxisTilt();
       updateSunAndLight();
       updateSunPath();
+      updateNewSunPath();
+      updateVirtualGround();
       updateVisibility();
       updateSunPoint();
+      updateSunArrow();
       if (latitude >= 0) {
         latSpan.textContent = latitude.toFixed(1)+'°N';
       } else {
@@ -1052,7 +1350,7 @@
       haSpan.textContent = hourAngle.toFixed(1)+'°';
       decSpan.textContent = declination.toFixed(1)+'°';
       pillarSpan.textContent = pillarLength.toFixed(1);
-      globeOpacitySpan.textContent = globeOpacity.toFixed(1);
+      globeOpacitySpan.textContent = globeOpacity.toFixed(2);
       createPillar(); // 更新晷针长度
     }
     
@@ -1061,7 +1359,7 @@
         globeMaterial.opacity = globeOpacity;
         globeMaterial.needsUpdate = true;
       }
-      globeOpacitySpan.textContent = globeOpacity.toFixed(1);
+      globeOpacitySpan.textContent = globeOpacity.toFixed(2);
     }
 
     function goToSunrise() {
@@ -1088,14 +1386,18 @@
       }
     }
 
-    sliderLat.addEventListener('input', ()=>{ latitude=+sliderLat.value; refreshAll(); });
-    sliderHA.addEventListener('input', ()=>{ hourAngle=+sliderHA.value; refreshAll(); });
-    sliderDec.addEventListener('input', ()=>{ declination=+sliderDec.value; refreshAll(); });
+    sliderLat.addEventListener('input', ()=>{ latitude=+sliderLat.value; if (sunTimeMode !== 'free') applySunTimeMode(); else refreshAll(); });
+    sliderHA.addEventListener('input', ()=>{ hourAngle=+sliderHA.value; sunTimeMode='free'; btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active'); refreshAll(); });
+    sliderDec.addEventListener('input', ()=>{ declination=+sliderDec.value; if (sunTimeMode !== 'free') applySunTimeMode(); else refreshAll(); });
     sliderPillar.addEventListener('input', ()=>{ pillarLength=+sliderPillar.value; refreshAll(); });
     sliderGlobeOpacity.addEventListener('input', ()=>{ 
       globeOpacity = +sliderGlobeOpacity.value;
       updateGlobeOpacity();
     });
+
+    pathColorAbove.addEventListener('input', ()=>{ updateSunPath(); updateNewSunPath(); });
+    pathColorBelow.addEventListener('input', ()=>{ updateSunPath(); updateNewSunPath(); });
+    sliderPathWidth.addEventListener('input', ()=>{ pathWidth = +sliderPathWidth.value; pathWidthVal.textContent = pathWidth; updateSunPath(); updateNewSunPath(); });
 
     btnBoth.addEventListener('click', ()=>{ displayMode='both'; refreshAll(); setActiveBtn(); });
     btnSundial.addEventListener('click', ()=>{ displayMode='sundial'; refreshAll(); setActiveBtn(); });
@@ -1113,7 +1415,10 @@
       btnAutoPlay.classList.toggle('active', autoPlay);
       if (autoPlay) {
         autoDir = 1;
-        // 如果地球自转开启，则关闭它
+        sunTimeMode = 'free';
+        btnSunrise.classList.remove('active');
+        btnNoon.classList.remove('active');
+        btnSunset.classList.remove('active');
         if (showGlobeRotate) {
           showGlobeRotate = false;
           btnGlobeRotate.classList.remove('active');
@@ -1127,26 +1432,31 @@
         showGlobeTexture = prevGlobeTextureState;
         showSunPoint = prevSunPointState;
         showGlobeRotate = prevGlobeRotateState;
+        showSunArrow = prevSunArrowState;
         
         // 更新按钮状态
         btnGlobeTexture.classList.toggle('active', showGlobeTexture);
         btnSunPoint.classList.toggle('active', showSunPoint);
         btnGlobeRotate.classList.toggle('active', showGlobeRotate);
+        btnSunArrow.classList.toggle('active', showSunArrow);
       } else {
         // 关闭地球仪时，保存当前状态
         prevGlobeTextureState = showGlobeTexture;
         prevSunPointState = showSunPoint;
         prevGlobeRotateState = showGlobeRotate;
+        prevSunArrowState = showSunArrow;
         
         // 自动关闭相关功能
         showGlobeTexture = false;
         showSunPoint = false;
         showGlobeRotate = false;
+        showSunArrow = false;
         
         // 更新按钮状态
         btnGlobeTexture.classList.remove('active');
         btnSunPoint.classList.remove('active');
         btnGlobeRotate.classList.remove('active');
+        btnSunArrow.classList.remove('active');
       }
       
       showGlobe=!showGlobe;
@@ -1154,6 +1464,7 @@
       updateGlobeVisibility();
       updateGlobeTexture();
       updateSunPoint();
+      updateSunArrow();
     });
 
     btnGlobeTexture.addEventListener('click', ()=>{
@@ -1178,6 +1489,36 @@
       btnSunPoint.classList.toggle('active', showSunPoint);
       updateGlobeVisibility();
       updateSunPoint();
+      updateSunArrow();
+    });
+
+    btnSunArrow.addEventListener('click', ()=>{
+      showSunArrow=!showSunArrow;
+      btnSunArrow.classList.toggle('active', showSunArrow);
+      if (showSunArrow) {
+        if (!showGlobe) {
+          showGlobe = true;
+          btnGlobe.classList.add('active');
+          updateGlobeVisibility();
+          updateGlobeTexture();
+        }
+        if (!showSunPoint) {
+          showSunPoint = true;
+          btnSunPoint.classList.add('active');
+          updateGlobeVisibility();
+        }
+        if (!showNewPath) {
+          showNewPath = true;
+          showOldPath = false;
+          btnNewPath.classList.add('active');
+          btnOldPath.classList.remove('active');
+          updateSunPath();
+          updateNewSunPath();
+          updateVirtualGround();
+        }
+      }
+      updateSunPoint();
+      updateSunArrow();
     });
 
     btnGroundShadow.addEventListener('click', ()=>{
@@ -1185,20 +1526,103 @@
       btnGroundShadow.classList.toggle('active', showGroundShadow);
       updateGroundShadow();
     });
+
+    btnTimeMarks.addEventListener('click', ()=>{
+      showTimeMarks=!showTimeMarks;
+      btnTimeMarks.classList.toggle('active', showTimeMarks);
+      updateSunPath();
+      updateNewSunPath();
+    });
+
+    btnOldPath.addEventListener('click', ()=>{
+      if (showOldPath) return;
+      showOldPath = true;
+      showNewPath = false;
+      btnOldPath.classList.add('active');
+      btnNewPath.classList.remove('active');
+      updateSunPath();
+      updateNewSunPath();
+      updateSunArrow();
+      updateVirtualGround();
+    });
+
+    btnNewPath.addEventListener('click', ()=>{
+      if (showNewPath) return;
+      showNewPath = true;
+      showOldPath = false;
+      btnNewPath.classList.add('active');
+      btnOldPath.classList.remove('active');
+      updateSunPath();
+      updateNewSunPath();
+      updateSunArrow();
+      updateVirtualGround();
+    });
     
     function updateGroundShadow() {
-      // 更新太阳光强度以反映地面阻挡效果
       updateSunAndLight();
     }
 
-    btnNoon.addEventListener('click', ()=>{
-      hourAngle=0; sliderHA.value=0; autoPlay=false;
-      btnAutoPlay.textContent='▶ 自动播放'; btnAutoPlay.classList.remove('active');
+    function applySunTimeMode() {
+      if (sunTimeMode === 'noon') {
+        hourAngle = 0;
+      } else if (sunTimeMode === 'sunrise') {
+        const haRise = calculateSunriseHourAngle();
+        if (haRise !== null) hourAngle = -haRise;
+      } else if (sunTimeMode === 'sunset') {
+        const haSet = calculateSunriseHourAngle();
+        if (haSet !== null) hourAngle = haSet;
+      }
+      sliderHA.value = hourAngle;
       refreshAll();
+    }
+
+    btnNoon.addEventListener('click', ()=>{
+      if (sunTimeMode === 'noon') {
+        sunTimeMode = 'free';
+        btnNoon.classList.remove('active');
+      } else {
+        sunTimeMode = 'noon';
+        btnNoon.classList.add('active');
+        btnSunrise.classList.remove('active');
+        btnSunset.classList.remove('active');
+        autoPlay = false;
+        btnAutoPlay.textContent = '▶ 自动播放';
+        btnAutoPlay.classList.remove('active');
+      }
+      applySunTimeMode();
     });
 
-    btnSunrise.addEventListener('click', goToSunrise);
-    btnSunset.addEventListener('click', goToSunset);
+    btnSunrise.addEventListener('click', ()=>{
+      if (sunTimeMode === 'sunrise') {
+        sunTimeMode = 'free';
+        btnSunrise.classList.remove('active');
+      } else {
+        sunTimeMode = 'sunrise';
+        btnSunrise.classList.add('active');
+        btnNoon.classList.remove('active');
+        btnSunset.classList.remove('active');
+        autoPlay = false;
+        btnAutoPlay.textContent = '▶ 自动播放';
+        btnAutoPlay.classList.remove('active');
+      }
+      applySunTimeMode();
+    });
+
+    btnSunset.addEventListener('click', ()=>{
+      if (sunTimeMode === 'sunset') {
+        sunTimeMode = 'free';
+        btnSunset.classList.remove('active');
+      } else {
+        sunTimeMode = 'sunset';
+        btnSunset.classList.add('active');
+        btnNoon.classList.remove('active');
+        btnSunrise.classList.remove('active');
+        autoPlay = false;
+        btnAutoPlay.textContent = '▶ 自动播放';
+        btnAutoPlay.classList.remove('active');
+      }
+      applySunTimeMode();
+    });
 
     toggleBtn.addEventListener('click', ()=>{
       panel.classList.toggle('collapsed');
@@ -1208,17 +1632,17 @@
 
     window.addEventListener('keydown', (e)=>{
       switch(e.key.toLowerCase()) {
-        case ' ': e.preventDefault(); autoPlay=!autoPlay; btnAutoPlay.textContent=autoPlay?'⏸ 停止':'▶ 自动播放'; btnAutoPlay.classList.toggle('active', autoPlay); if(autoPlay) autoDir=1; break;
-        case 'n': hourAngle=0; sliderHA.value=0; autoPlay=false; btnAutoPlay.textContent='▶ 自动播放'; btnAutoPlay.classList.remove('active'); refreshAll(); break;
-        case 'r': goToSunrise(); break;
-        case 's': goToSunset(); break;
+        case ' ': e.preventDefault(); autoPlay=!autoPlay; btnAutoPlay.textContent=autoPlay?'⏸ 停止':'▶ 自动播放'; btnAutoPlay.classList.toggle('active', autoPlay); if(autoPlay){autoDir=1; sunTimeMode='free'; btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active');} break;
+        case 'n': btnNoon.click(); break;
+        case 'r': btnSunrise.click(); break;
+        case 's': btnSunset.click(); break;
         case '1': displayMode='both'; refreshAll(); setActiveBtn(); break;
         case '2': displayMode='sundial'; refreshAll(); setActiveBtn(); break;
         case '3': displayMode='pole'; refreshAll(); setActiveBtn(); break;
-        case 'arrowleft': hourAngle=Math.max(-180, hourAngle-10); sliderHA.value=hourAngle; refreshAll(); break;
-        case 'arrowright': hourAngle=Math.min(180, hourAngle+10); sliderHA.value=hourAngle; refreshAll(); break;
-        case 'arrowup': latitude=Math.min(90, latitude+2); sliderLat.value=latitude; refreshAll(); break;
-        case 'arrowdown': latitude=Math.max(-90, latitude-2); sliderLat.value=latitude; refreshAll(); break;
+        case 'arrowleft': hourAngle=Math.max(-180, hourAngle-10); sliderHA.value=hourAngle; sunTimeMode='free'; btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active'); refreshAll(); break;
+        case 'arrowright': hourAngle=Math.min(180, hourAngle+10); sliderHA.value=hourAngle; sunTimeMode='free'; btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active'); refreshAll(); break;
+        case 'arrowup': latitude=Math.min(90, latitude+2); sliderLat.value=latitude; if(sunTimeMode!=='free') applySunTimeMode(); else refreshAll(); break;
+        case 'arrowdown': latitude=Math.max(-90, latitude-2); sliderLat.value=latitude; if(sunTimeMode!=='free') applySunTimeMode(); else refreshAll(); break;
       }
     });
 
@@ -1226,15 +1650,18 @@
       camera.aspect = window.innerWidth/window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      updateSunPath();
+      updateNewSunPath();
     });
 
     sliderLat.value=latitude; sliderHA.value=hourAngle; sliderDec.value=declination; sliderPillar.value=pillarLength;
+    btnOldPath.classList.add('active');
     toggleBtn.classList.add('shifted');
     refreshAll();
 
     function animate() {
       requestAnimationFrame(animate);
-      if (autoPlay) {
+      if (autoPlay && sunTimeMode === 'free') {
         hourAngle += autoSpeed * autoDir;
         if (hourAngle >= 180) {
           hourAngle = -180;
