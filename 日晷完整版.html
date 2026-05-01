@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>赤道式日晷 · 全天日影对比 </title>
+  <title> 日晷 · 全天日影对比 </title>
   <style>
     :root {
       --bg: #1a1a2e;
@@ -90,9 +90,13 @@
 <body>
   <div id="canvas-container"></div>
   <div id="panel">
-    <h3>☀️ 赤道式日晷 · 全天演示</h3>
+    <h3>☀️ 日晷 · 全天演示</h3>
     <div class="subtitle">太阳东升西落 · 日出日落定位</div>
     <div id="time-display">12:00</div>
+    <div style="display:flex;gap:6px;justify-content:center;margin:4px 0;">
+      <button class="btn" id="btn-hour-back" style="flex:1;padding:4px 0;font-size:14px;">⏪ 快退</button>
+      <button class="btn" id="btn-hour-forward" style="flex:1;padding:4px 0;font-size:14px;">快进 ⏩</button>
+    </div>
     <div id="sun-info">高度角 <span id="alt-val">60°</span> · 方位角 <span id="az-val">180°</span></div>
 
     <div class="ctrl-group">
@@ -112,6 +116,10 @@
       <input type="range" id="pillar-length" min="0.5" max="3.0" value="1.6" step="0.1">
     </div>
 
+    <div class="btn-row">
+      <button class="btn active" id="btn-equatorial">赤道式</button>
+      <button class="btn" id="btn-horizontal">地平式</button>
+    </div>
     <div class="btn-row">
       <button class="btn active" id="btn-both">日晷+立杆</button>
       <button class="btn" id="btn-sundial">仅日晷</button>
@@ -187,6 +195,8 @@
     const btnBoth = document.getElementById('btn-both');
     const btnSundial = document.getElementById('btn-sundial');
     const btnPole = document.getElementById('btn-pole');
+    const btnEquatorial = document.getElementById('btn-equatorial');
+    const btnHorizontal = document.getElementById('btn-horizontal');
     const btnAutoPlay = document.getElementById('btn-auto-play');
     const btnNoon = document.getElementById('btn-noon');
     const btnSunrise = document.getElementById('btn-sunrise');
@@ -204,6 +214,8 @@
     const pathColorBelow = document.getElementById('path-color-below');
     const sliderPathWidth = document.getElementById('path-width');
     const pathWidthVal = document.getElementById('path-width-val');
+    const btnHourForward = document.getElementById('btn-hour-forward');
+    const btnHourBack = document.getElementById('btn-hour-back');
 
     // ---------- 状态 ----------
     let latitude = 35;
@@ -211,6 +223,7 @@
     let declination = 0;
     let pillarLength = 1.6;
     let displayMode = 'both';
+    let sundialType = 'equatorial';
     let autoPlay = false;
     const autoSpeed = 0.25;
     let autoDir = 1;
@@ -536,6 +549,163 @@
     dialMesh.castShadow = true;
     dialMesh.receiveShadow = true;
     axisPivot.add(dialMesh);
+
+    // ---------- 地平式日晷 ----------
+    const hSundialGroup = new THREE.Group();
+    hSundialGroup.position.y = baseHeight + 0.05;
+    hSundialGroup.visible = false;
+    sundialGroup.add(hSundialGroup);
+
+    const hDialRadius = 3.5;
+    const hDialThickness = 0.1;
+    const hDialGeo = new THREE.CylinderGeometry(hDialRadius, hDialRadius, hDialThickness, 80);
+
+    function createHorizontalDialTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f7f2e8';
+      ctx.beginPath(); ctx.arc(512, 512, 500, 0, Math.PI * 2); ctx.fill();
+
+      ctx.strokeStyle = '#5a4a38'; ctx.lineWidth = 14;
+      ctx.beginPath(); ctx.arc(512, 512, 485, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#7a6a55'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(512, 512, 440, 0, Math.PI * 2); ctx.stroke();
+
+      const phi = latitude * Math.PI / 180;
+      const sinPhi = Math.sin(phi);
+      const hemisphereOffset = latitude >= 0 ? -Math.PI / 2 : Math.PI / 2;
+
+      for (let h = 0; h < 24; h++) {
+        const HA = (h - 12) * 15;
+        const haRad = HA * Math.PI / 180;
+
+        let hhRad;
+        if (Math.abs(sinPhi) < 0.001) {
+          hhRad = haRad;
+        } else {
+          hhRad = Math.atan2(sinPhi * Math.sin(haRad), Math.cos(haRad));
+        }
+
+        const drawAngle = hhRad + hemisphereOffset;
+
+        const major = (h % 6 === 0);
+        const outerR = major ? 440 : 420;
+
+        ctx.strokeStyle = major ? '#3a2a18' : '#5a4a35';
+        ctx.lineWidth = major ? 6 : 3.5;
+        ctx.beginPath();
+        ctx.moveTo(512, 512);
+        ctx.lineTo(512 + outerR * Math.sin(drawAngle), 512 - outerR * Math.cos(drawAngle));
+        ctx.stroke();
+
+        const numR = 340;
+        const x = 512 + numR * Math.sin(drawAngle);
+        const y = 512 - numR * Math.cos(drawAngle);
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(drawAngle);
+        ctx.fillStyle = '#3a2a18';
+        ctx.font = 'bold 38px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const hourNum = h || 24;
+        ctx.fillText(hourNum.toString(), 0, 0);
+        ctx.restore();
+      }
+
+      ctx.fillStyle = '#3a2a18';
+      ctx.beginPath(); ctx.arc(512, 512, 16, 0, Math.PI * 2); ctx.fill();
+
+      const dirR = 470;
+      const poleDir = latitude >= 0 ? 'N' : 'S';
+      const antiDir = latitude >= 0 ? 'S' : 'N';
+      const poleAngle = hemisphereOffset;
+      const antiAngle = hemisphereOffset + Math.PI;
+
+      ctx.fillStyle = '#cc3333';
+      ctx.font = 'bold 32px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(poleDir, 512 + dirR * Math.sin(poleAngle), 512 - dirR * Math.cos(poleAngle));
+
+      ctx.fillStyle = '#555555';
+      ctx.fillText(antiDir, 512 + dirR * Math.sin(antiAngle), 512 - dirR * Math.cos(antiAngle));
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = true;
+      return texture;
+    }
+
+    let hDialTopTex = createHorizontalDialTexture();
+    const hDialTopMat = new THREE.MeshStandardMaterial({ map: hDialTopTex, roughness: 0.35, metalness: 0.05, color: 0xfefefe });
+    const hDialSideMat = new THREE.MeshStandardMaterial({ color: 0x7a6a55, roughness: 0.5, metalness: 0.2 });
+    const hDialBottomMat = new THREE.MeshStandardMaterial({ color: 0xe8e0d5, roughness: 0.5, metalness: 0.1 });
+    const hDialMesh = new THREE.Mesh(hDialGeo, [hDialSideMat, hDialTopMat, hDialBottomMat]);
+    hDialMesh.position.y = hDialThickness / 2;
+    hDialMesh.castShadow = true;
+    hDialMesh.receiveShadow = true;
+    hSundialGroup.add(hDialMesh);
+
+    // 地平式日晷晷针（三角形式，倾斜角=纬度）
+    const hGnomonGroup = new THREE.Group();
+    hGnomonGroup.position.y = hDialThickness;
+    hSundialGroup.add(hGnomonGroup);
+
+    function createHorizontalGnomon() {
+      while (hGnomonGroup.children.length > 0) hGnomonGroup.remove(hGnomonGroup.children[0]);
+
+      const phi = Math.abs(latitude) * Math.PI / 180;
+      const gnomonLength = hDialRadius * 0.85;
+      const gnomonHeight = gnomonLength * Math.tan(phi);
+
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0);
+      shape.lineTo(gnomonLength, 0);
+      shape.lineTo(gnomonLength, gnomonHeight);
+      shape.closePath();
+
+      const extrudeSettings = { depth: 0.06, bevelEnabled: false };
+      const gnomonGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      const gnomonMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.35, metalness: 0.65 });
+      const gnomonMesh = new THREE.Mesh(gnomonGeo, gnomonMat);
+      gnomonMesh.position.set(0, 0, -0.03);
+      gnomonMesh.castShadow = true;
+      hGnomonGroup.add(gnomonMesh);
+
+      const tipGeo = new THREE.SphereGeometry(0.12, 16, 16);
+      const tipMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.25, metalness: 0.7 });
+      const tip = new THREE.Mesh(tipGeo, tipMat);
+      tip.position.set(gnomonLength, gnomonHeight, 0);
+      tip.castShadow = true;
+      hGnomonGroup.add(tip);
+
+      if (latitude >= 0) {
+        hGnomonGroup.rotation.y = Math.PI / 2;
+      } else {
+        hGnomonGroup.rotation.y = -Math.PI / 2;
+      }
+    }
+    createHorizontalGnomon();
+
+    // 地平式日晷标签
+    const hLabelCanvas = document.createElement('canvas');
+    hLabelCanvas.width = 256; hLabelCanvas.height = 64;
+    const hlctx = hLabelCanvas.getContext('2d');
+    hlctx.fillStyle = '#fff'; hlctx.font = 'bold 28px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+    hlctx.textAlign = 'center'; hlctx.textBaseline = 'middle';
+    hlctx.fillText('地平式日晷', 128, 32);
+    const hLabelTex = new THREE.CanvasTexture(hLabelCanvas);
+    const hLabelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: hLabelTex, transparent: true, depthTest: false, depthWrite: false }));
+    hLabelSprite.position.set(0, 5.5, 0);
+    hLabelSprite.scale.set(3.6, 0.9, 1);
+    hLabelSprite.renderOrder = 998;
+    hSundialGroup.add(hLabelSprite);
 
     // ---------- 地球仪 ----------
     let globeObjects = [];
@@ -1207,6 +1377,67 @@
       axisPivot.rotation.x = (latitude - 90) * Math.PI / 180;
     }
 
+    function updateSundialType() {
+      const isEquatorial = sundialType === 'equatorial';
+      axisPivot.visible = isEquatorial;
+      supportGroup.visible = isEquatorial;
+      baseBlock.visible = isEquatorial;
+      edge.visible = isEquatorial;
+      hSundialGroup.visible = !isEquatorial;
+      labelSprite.visible = isEquatorial && (displayMode !== 'pole');
+      hLabelSprite.visible = !isEquatorial && (displayMode !== 'pole');
+
+      hSundialGroup.position.y = isEquatorial ? (baseHeight + 0.05) : 0;
+
+      const equatorialOnlyEls = [
+        btnOldPath, btnNewPath,
+        btnGlobe, btnGlobeTexture, btnSunPoint, btnSunArrow,
+        btnGlobeRotate
+      ];
+      equatorialOnlyEls.forEach(el => {
+        if (el) el.style.display = isEquatorial ? '' : 'none';
+      });
+      const globeOpacityGroup = sliderGlobeOpacity.closest('.ctrl-group');
+      if (globeOpacityGroup) globeOpacityGroup.style.display = isEquatorial ? '' : 'none';
+
+      if (!isEquatorial) {
+        if (showGlobe) {
+          prevGlobeTextureState = showGlobeTexture;
+          prevSunPointState = showSunPoint;
+          prevGlobeRotateState = showGlobeRotate;
+          prevSunArrowState = showSunArrow;
+          showGlobe = false;
+          showGlobeTexture = false;
+          showSunPoint = false;
+          showSunArrow = false;
+          showGlobeRotate = false;
+          btnGlobe.classList.remove('active');
+          btnGlobeTexture.classList.remove('active');
+          btnSunPoint.classList.remove('active');
+          btnSunArrow.classList.remove('active');
+          btnGlobeRotate.classList.remove('active');
+          updateGlobeVisibility();
+        }
+        if (showNewPath) {
+          showNewPath = false;
+          showOldPath = true;
+          btnOldPath.classList.add('active');
+          btnNewPath.classList.remove('active');
+        }
+        hDialTopTex = createHorizontalDialTexture();
+        hDialTopMat.map = hDialTopTex;
+        hDialTopMat.needsUpdate = true;
+        createHorizontalGnomon();
+      } else {
+        if (prevGlobeTextureState !== undefined) {
+          showGlobeTexture = prevGlobeTextureState;
+          showSunPoint = prevSunPointState;
+          showGlobeRotate = prevGlobeRotateState;
+          showSunArrow = prevSunArrowState;
+        }
+      }
+    }
+
     function updateSunAndLight() {
       const sunData = getSunPosition(latitude, hourAngle, declination);
       const altDeg = sunData.altDeg;
@@ -1220,8 +1451,9 @@
       
       const dir = new THREE.Vector3(sx, sy, sz);
       
-      // 晷盘中心位置
-      const sundialCenter = new THREE.Vector3(0, baseHeight + axisHeight, 0);
+      const sundialCenter = sundialType === 'equatorial'
+        ? new THREE.Vector3(0, baseHeight + axisHeight, 0)
+        : new THREE.Vector3(0, 0, 0);
       
       // 太阳可视化和光源以晷盘中心为圆心
       sunVis.position.copy(sundialCenter.clone().add(dir.clone().multiplyScalar(34)));
@@ -1321,20 +1553,22 @@
     function updateVisibility() {
       sundialGroup.visible = (displayMode==='sundial'||displayMode==='both');
       poleGroup.visible = (displayMode==='pole'||displayMode==='both');
+      const isEq = sundialType === 'equatorial';
       if (displayMode==='pole') {
-        labelSprite.visible=false; poleLabelSprite.visible=true;
+        labelSprite.visible=false; hLabelSprite.visible=false; poleLabelSprite.visible=true;
         poleGroup.position.set(0, 0, 0);
       } else if (displayMode==='sundial') {
-        labelSprite.visible=true; poleLabelSprite.visible=false;
+        labelSprite.visible=isEq; hLabelSprite.visible=!isEq; poleLabelSprite.visible=false;
         poleGroup.position.set(5.5, 0, 0);
       } else {
-        labelSprite.visible=true; poleLabelSprite.visible=true;
+        labelSprite.visible=isEq; hLabelSprite.visible=!isEq; poleLabelSprite.visible=true;
         poleGroup.position.set(5.5, 0, 0);
       }
     }
 
     function refreshAll() {
       updateAxisTilt();
+      updateSundialType();
       updateSunAndLight();
       updateSunPath();
       updateNewSunPath();
@@ -1388,6 +1622,25 @@
 
     sliderLat.addEventListener('input', ()=>{ latitude=+sliderLat.value; if (sunTimeMode !== 'free') applySunTimeMode(); else refreshAll(); });
     sliderHA.addEventListener('input', ()=>{ hourAngle=+sliderHA.value; sunTimeMode='free'; btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active'); refreshAll(); });
+
+    btnHourForward.addEventListener('click', ()=>{
+      const currentHA = hourAngle;
+      const nextWhole = Math.ceil((currentHA + 0.01) / 15) * 15;
+      hourAngle = nextWhole > 180 ? 180 : nextWhole;
+      sliderHA.value = hourAngle;
+      sunTimeMode = 'free';
+      btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active');
+      refreshAll();
+    });
+    btnHourBack.addEventListener('click', ()=>{
+      const currentHA = hourAngle;
+      const prevWhole = Math.floor((currentHA - 0.01) / 15) * 15;
+      hourAngle = prevWhole < -180 ? -180 : prevWhole;
+      sliderHA.value = hourAngle;
+      sunTimeMode = 'free';
+      btnSunrise.classList.remove('active'); btnNoon.classList.remove('active'); btnSunset.classList.remove('active');
+      refreshAll();
+    });
     sliderDec.addEventListener('input', ()=>{ declination=+sliderDec.value; if (sunTimeMode !== 'free') applySunTimeMode(); else refreshAll(); });
     sliderPillar.addEventListener('input', ()=>{ pillarLength=+sliderPillar.value; refreshAll(); });
     sliderGlobeOpacity.addEventListener('input', ()=>{ 
@@ -1402,6 +1655,31 @@
     btnBoth.addEventListener('click', ()=>{ displayMode='both'; refreshAll(); setActiveBtn(); });
     btnSundial.addEventListener('click', ()=>{ displayMode='sundial'; refreshAll(); setActiveBtn(); });
     btnPole.addEventListener('click', ()=>{ displayMode='pole'; refreshAll(); setActiveBtn(); });
+
+    btnEquatorial.addEventListener('click', ()=>{
+      if (sundialType === 'equatorial') return;
+      sundialType = 'equatorial';
+      btnEquatorial.classList.add('active');
+      btnHorizontal.classList.remove('active');
+      if (showGlobe) {
+        showGlobe = false;
+        btnGlobe.classList.remove('active');
+        updateGlobeVisibility();
+      }
+      refreshAll();
+    });
+    btnHorizontal.addEventListener('click', ()=>{
+      if (sundialType === 'horizontal') return;
+      sundialType = 'horizontal';
+      btnHorizontal.classList.add('active');
+      btnEquatorial.classList.remove('active');
+      if (showGlobe) {
+        showGlobe = false;
+        btnGlobe.classList.remove('active');
+        updateGlobeVisibility();
+      }
+      refreshAll();
+    });
 
     function setActiveBtn() {
       btnBoth.classList.toggle('active', displayMode==='both');
@@ -1427,6 +1705,7 @@
     });
 
     btnGlobe.addEventListener('click', ()=>{
+      if (sundialType === 'horizontal') return;
       if (!showGlobe) {
         // 开启地球仪时，恢复之前的状态
         showGlobeTexture = prevGlobeTextureState;
