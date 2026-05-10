@@ -1361,6 +1361,8 @@
         sunArrow.visible = false;
         return;
       }
+      // 确保矩阵世界坐标是最新的
+      axisPivot.updateMatrixWorld(true);
       const start = newSunBall.position.clone();
       const end = new THREE.Vector3();
       sunPointMesh.getWorldPosition(end);
@@ -1560,7 +1562,7 @@
         hDialTopMat.needsUpdate = true;
         createHorizontalGnomon();
       } else {
-        if (prevGlobeTextureState !== undefined) {
+        if (!showGlobe && prevGlobeTextureState !== undefined) {
           showGlobeTexture = prevGlobeTextureState;
           showSunPoint = prevSunPointState;
           showGlobeRotate = prevGlobeRotateState;
