@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 地球时区与日期演示系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        body { margin: 0; overflow: hidden; background-color: #020617; font-family: 'Inter', sans-serif; color: white; }
+        canvas { display: block; }
+        .glass-panel { 
+            background: rgba(15, 23, 42, 0.7); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 1rem;
+        }
+        .time-badge {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .drag-handle {
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+        }
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+        .dragging .drag-handle {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body>
+
+<div class="absolute top-6 left-6 z-[60] w-80 space-y-4 pointer-events-none" id="leftPanelWrapper">
+    <div class="glass-panel p-4 pointer-events-auto relative" id="leftPanel">
+        <div class="drag-handle absolute top-2 left-3 text-gray-500 hover:text-gray-300 text-xs select-none" title="拖拽移动面板">⠿⠿</div>
+        <button onclick="togglePanel('leftPanelContent','leftCollapsedBtn')" class="absolute top-3 right-3 w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition text-xs" title="折叠面板">◀</button>
+        <div id="leftPanelContent">
+        <h1 class="text-xl font-bold flex items-center gap-2 mb-2">
+            <span class="text-blue-400">🌐</span> 时区与日期演示
+        </h1>
+        <p class="text-xs text-gray-400 mb-2 leading-relaxed">
+            演示地球自转引起的地方时差异。固定光源代表太阳方向，旋转地球观察时间更替。
+        </p>
+        
+        <div class="space-y-2">
+            <section>
+                <div class="flex justify-between text-xs mb-2">
+                    <span class="text-gray-400">地球自转控制</span>
+                    <span id="speedVal" class="text-blue-300 font-mono">1.0x</span>
+                </div>
+                <input type="range" id="rotationSpeed" min="0" max="10" step="0.1" value="1" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </section>
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="toggleTimeZones" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">显示时区</button>
+                <button id="toggleNight" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">显示昼夜</button>
+            </section>
+
+            <section class="grid grid-cols-2 gap-2" id="subControls" style="display:none">
+                <button id="toggleTZLabels" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">时区名称</button>
+                <button id="toggleDNLabels" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">昼夜标记</button>
+            </section>
+
+            <section>
+                <div class="flex justify-between text-xs mb-2">
+                    <span class="text-gray-400">0时所在经线</span>
+                    <span id="midnightLonVal" class="text-yellow-300 font-mono">180°</span>
+                </div>
+                <input type="range" id="midnightLon" min="-180" max="180" step="1" value="180" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </section>
+
+            <section>
+                <div class="flex justify-between text-xs mb-2">
+                    <span class="text-gray-400">日期 (太阳赤纬)</span>
+                    <span id="dayOfYearVal" class="text-orange-300 font-mono">6月21日 (23.5°N)</span>
+                </div>
+                <input type="range" id="dayOfYear" min="1" max="365" step="1" value="172" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </section>
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="btnPause" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">⏸ 暂停自转</button>
+                <button onclick="resetEarth()" class="glass-panel py-1.5 text-xs hover:bg-white/10 transition">重置至正午</button>
+            </section>
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="toggleSunArrow" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">☀ 阳光箭头</button>
+                <button id="toggleSunLat" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">☀ 直射纬线</button>
+            </section>
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="toggleDateMarks" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">日期标记</button>
+                <button id="toggleMeridianLabels" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">经度标记</button>
+            </section>
+
+            <section>
+                <button id="showDateDist" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full">📅 日期分布</button>
+            </section>
+
+            <section>
+                <button id="toggleFlatMap" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full">🗺 切换至平面地图</button>
+            </section>
+
+            <section class="border-t border-white/10 pt-2">
+                <div class="flex items-center gap-1 mb-2">
+                    <label class="text-[10px] text-gray-400 w-8 shrink-0">经度</label>
+                    <input type="number" id="markerLon" value="116" min="0" max="180" step="1"
+                        class="flex-1 bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-600 focus:border-blue-400 outline-none w-14"
+                        placeholder="0~180">
+                    <span class="text-[10px] text-gray-500">°</span>
+                    <select id="markerLonDir" class="bg-gray-800 text-white text-[10px] px-1.5 py-1 rounded border border-gray-600 w-16">
+                        <option value="E" selected>东经</option>
+                        <option value="W">西经</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-1 mb-2">
+                    <label class="text-[10px] text-gray-400 w-8 shrink-0">纬度</label>
+                    <input type="number" id="markerLat" value="40" min="0" max="90" step="1"
+                        class="flex-1 bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-600 focus:border-blue-400 outline-none w-14"
+                        placeholder="0~90">
+                    <span class="text-[10px] text-gray-500">°</span>
+                    <select id="markerLatDir" class="bg-gray-800 text-white text-[10px] px-1.5 py-1 rounded border border-gray-600 w-16">
+                        <option value="N" selected>北纬</option>
+                        <option value="S">南纬</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-1 mb-2">
+                    <label class="text-[10px] text-gray-400 w-8 shrink-0">地名</label>
+                    <input type="text" id="markerName" value="" maxlength="20"
+                        class="flex-1 bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-600 focus:border-blue-400 outline-none"
+                        placeholder="可选，如：北京">
+                </div>
+                <div class="text-[12px] text-gray-500 mb-2 flex items-center gap-1.5">
+                    <input type="checkbox" id="allowClickMarker" class="w-3 h-3 bg-gray-800 border-gray-600 rounded cursor-pointer">
+                    <label for="allowClickMarker" class="cursor-pointer select-none">允许点击地图/地球选择点</label>
+                </div>
+                <button id="btnPlaceMarker" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full">
+                    📍 放置地标
+                </button>
+                <button id="btnRemoveMarker" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full mt-1 hidden">
+                    ✕ 移除地标
+                </button>
+            </section>
+        </div>
+        </div>
+        <div id="leftCollapsedBtn" class="hidden flex items-center justify-center py-4">
+            <button onclick="togglePanel('leftPanelContent','leftCollapsedBtn')" class="text-gray-400 hover:text-white transition text-xs">▶ 展开面板</button>
+        </div>
+    </div>
+</div>
+
+<!-- 地方时实时数据 - 右上角 -->
+<div class="absolute top-6 right-6 z-[60] glass-panel p-4 pointer-events-auto w-52" id="rightPanel">
+        <div class="drag-handle absolute top-2 left-3 text-gray-500 hover:text-gray-300 text-xs select-none" title="拖拽移动面板">⠿⠿</div>
+        <button onclick="togglePanel('rightPanelContent','rightCollapsedBtn')" class="absolute top-3 right-3 w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition text-xs" title="折叠面板">▶</button>
+        <div id="rightPanelContent">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">UTC 时间 (模拟)</h3>
+        <div class="flex items-center justify-between">
+            <div class="text-2xl font-bold font-mono tracking-tighter" id="utcClock">12:00:00</div>
+            <div class="text-[10px] px-2 py-1 rounded bg-blue-900/50 text-blue-300" id="dateLabel">今日</div>
+        </div>
+        <div class="mt-1.5 pt-1.5 border-t border-white/10">
+            <div class="text-[10px] text-gray-500 mb-0.5">北京时间 (UTC+8)</div>
+            <div class="text-sm font-bold font-mono tracking-tighter text-red-300" id="beijingClock">20:00:00</div>
+        </div>
+        <div class="mt-2 text-[10px] text-gray-400">
+            * UTC时间随地球自转实时变化
+        </div>
+        <div id="markerLocalTime" class="mt-2 text-xs font-mono text-red-400 hidden"></div>
+        </div>
+        <div id="rightCollapsedBtn" class="hidden flex items-center justify-center py-2">
+            <button onclick="togglePanel('rightPanelContent','rightCollapsedBtn')" class="text-gray-400 hover:text-white transition text-xs">◀ 展开面板</button>
+        </div>
+    </div>
+
+<div id="flatMapOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:50; background:#020617;">
+    <canvas id="flatMapCanvas" style="width:100%; height:100%; display:block;"></canvas>
+    <button id="closeFlatMap" class="glass-panel px-4 py-2 text-sm font-semibold text-blue-300 hover:text-blue-100 hover:bg-white/10 transition"
+        style="position:fixed; top:24px; right:244px; z-index:65; pointer-events:auto;">🌍 返回3D地球</button>
+    <div id="flatMapInfo" style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); z-index:60;"
+        class="glass-panel px-6 py-3 text-xs text-gray-400 flex gap-6"></div>
+</div>
+
+<!-- 底部状态条 -->
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2 w-full px-4 max-w-2xl pointer-events-none">
+    <div class="glass-panel flex-1 p-3 pointer-events-auto flex items-center justify-around overflow-hidden">
+        <div class="text-center px-2">
+            <div class="text-xs text-gray-500 uppercase">晨昏线 (正午)</div>
+            <div class="text-base font-semibold text-yellow-400">面向太阳方向</div>
+        </div>
+        <div class="w-px h-8 bg-gray-800"></div>
+        <div class="text-center px-2">
+            <div class="text-xs text-gray-500 uppercase">日期变更线</div>
+            <div class="text-base font-semibold text-red-400">180° 经线</div>
+        </div>
+        <div class="w-px h-8 bg-gray-800"></div>
+        <div class="text-center px-2">
+            <div class="text-xs text-gray-500 uppercase">时区跨度</div>
+            <div class="text-base font-semibold text-blue-400">15° / 小时</div>
+        </div>
+        <div class="w-px h-8 bg-gray-800"></div>
+        <div class="text-center px-2">
+            <div class="text-xs text-gray-500 uppercase">日期标记</div>
+            <div class="text-sm font-semibold">
+                <span class="text-green-400">■ 新日期</span>
+                <span class="text-blue-400 ml-1">■ 旧日期</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let scene, camera, renderer, controls;
+let earth, earthGlobe, cloud, sunLight;
+let raycaster = new THREE.Raycaster();
+let timeZoneGroup, timeZoneBandsGroup, thickLinesGroup, nightOverlay, nightShaderMesh;
+let midnightLinePivot, sunPivot, terminatorLine, dateMarkPivot, dateLineLabelPivot;
+let timeZoneLabelsGroup, dayNightLabelsGroup;
+let midnightNewLabel, midnightOldLabel, dateLineNewLabel, dateLineOldLabel;
+let meridianLabelsGroup, midnightLonLabel, midnightLonLabelN, midnightLonLabelS;
+let sunArrowGroup, dateArrowGroup, newDateArrowLabel, oldDateArrowLabel;
+let newDateTube, oldDateTube, newDateHead, oldDateHead;
+let newDayMesh, oldDayMesh;
+let sunLatitudeLine, sunLatitudeLabelN, sunLatitudeLabelS;
+let subsolarDot, subsolarLabel;
+let customMarkerGroup, customMarkerLabel;
+let _prevUtcHour = null;
+let flatMapImg = null;
+
+const EARTH_RADIUS = 10;
+const params = {
+    rotationSpeed: 1,
+    paused: false,
+    showGrids: true,
+    showTimeZones: false,
+    showTimeZoneLabels: false,
+    showNight: false,
+    showDayNightLabels: false,
+    showDateMarks: false,
+    showMeridianLabels: false,
+    customMarker: null,
+    midnightLon: 180,
+    dayOfYear: 172,
+    flatMapMode: false,
+    showSunArrow: false,
+    showSunLatitude: false,
+    showSubsolar2D: false,
+    showSunLat2D: false,
+    allowClickMarker: false,
+    baseTime: new Date().getTime()
+};
+
+// 纹理资源 (使用高品质占位或CDN资源)
+const TEXTURES = {
+    day: 'https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_4k.jpg',
+    night: 'https://raw.githubusercontent.com/turban/webgl-earth/master/images/night_lights_4k.jpg',
+    clouds: 'https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png',
+    stars: 'https://raw.githubusercontent.com/turban/webgl-earth/master/images/galaxy_starfield.png'
+};
+
+function togglePanel(contentId, collapsedBtnId) {
+    const content = document.getElementById(contentId);
+    const collapsed = document.getElementById(collapsedBtnId);
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        collapsed.classList.add('hidden');
+    } else {
+        content.classList.add('hidden');
+        collapsed.classList.remove('hidden');
+    }
+}
+
+window.onload = init;
+
+function init() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(25, 15, 30);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    flatMapImg = new Image();
+    flatMapImg.crossOrigin = 'anonymous';
+    flatMapImg.src = TEXTURES.day;
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 12;
+    controls.maxDistance = 60;
+
+    setupLights();
+    createEarth();
+    createSunArrow();
+    createSpace();
+    createThickMeridians();
+    createMidnightMeridian();
+    createTimeGrids();
+    createTimeZoneBands();
+    createNightOverlay();
+    createTerminator();
+    createDateMarks();
+    createDateLineLabels();
+    createMeridianLabels();
+    setupEvents();
+    applyCurrentDate();
+    setMidnightMeridian(180);
+    animate();
+}
+
+function setupLights() {
+    sunPivot = new THREE.Group();
+    scene.add(sunPivot);
+
+    sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    sunLight.position.set(0, 0, 50);
+    sunPivot.add(sunLight);
+
+    const ambient = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(ambient);
+
+    setDeclination(params.dayOfYear);
+}
+
+function getCurrentDayOfYear() {
+    const d = new Date();
+    const start = new Date(d.getFullYear(), 0, 0);
+    const diff = d - start;
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function applyCurrentDate() {
+    const doy = getCurrentDayOfYear();
+    params.dayOfYear = doy;
+    document.getElementById('dayOfYear').value = doy;
+    document.getElementById('dayOfYearVal').innerText = getDateString(doy) + ' (' + getDeclString(doy) + ')';
+    setDeclination(doy);
+}
+
+function calcDeclination(doy) {
+    const vernal = 80;
+    const summer = 173;
+    const autumnal = 266;
+    const winter = 356;
+    const nextVernal = vernal + 365;
+
+    let theta;
+    if (doy >= vernal && doy < summer) {
+        theta = (Math.PI / 2) * (doy - vernal) / (summer - vernal);
+    } else if (doy >= summer && doy < autumnal) {
+        theta = Math.PI / 2 + (Math.PI / 2) * (doy - summer) / (autumnal - summer);
+    } else if (doy >= autumnal && doy < winter) {
+        theta = Math.PI + (Math.PI / 2) * (doy - autumnal) / (winter - autumnal);
+    } else if (doy >= winter) {
+        theta = 3 * Math.PI / 2 + (Math.PI / 2) * (doy - winter) / (nextVernal - winter);
+    } else {
+        const adjusted = doy + 365;
+        theta = 3 * Math.PI / 2 + (Math.PI / 2) * (adjusted - winter) / (nextVernal - winter);
+    }
+    return 23.5 * Math.sin(theta);
+}
+
+function setDeclination(dayOfYear) {
+    const decl = calcDeclination(dayOfYear);
+    sunPivot.rotation.x = THREE.MathUtils.degToRad(23.5 - decl);
+    updateNightOverlayRotation();
+    updateTerminatorRotation();
+    if (params.showSunLatitude) createSunLatitudeLine();
+}
+
+function updateNightOverlayRotation() {
+    if (!nightOverlay || !nightShaderMesh) return;
+    const sunWorldPos = new THREE.Vector3();
+    sunLight.getWorldPosition(sunWorldPos);
+    nightShaderMesh.material.uniforms.sunDirection.value.copy(sunWorldPos).normalize();
+}
+
+function updateTerminatorRotation() {
+    if (!terminatorLine) return;
+    const decl = calcDeclination(params.dayOfYear);
+    terminatorLine.rotation.x = THREE.MathUtils.degToRad(23.5 - decl);
+}
+
+function createEarth() {
+    const loader = new THREE.TextureLoader();
+    
+    // 地球组：方便旋转
+    earth = new THREE.Group();
+    scene.add(earth);
+
+    // 核心球体
+    const geo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+    
+    // 使用自定义着色器实现昼夜平滑过渡
+    const mat = new THREE.MeshPhongMaterial({
+        map: loader.load(TEXTURES.day),
+        bumpMap: loader.load(TEXTURES.day), // 暂用昼图模拟起伏
+        bumpScale: 0.1,
+        specularMap: loader.load(TEXTURES.day),
+        specular: new THREE.Color('grey')
+    });
+
+    const globe = new THREE.Mesh(geo, mat);
+    earthGlobe = globe;
+    earth.add(globe);
+
+    // 云层
+    const cloudGeo = new THREE.SphereGeometry(EARTH_RADIUS + 0.1, 64, 64);
+    const cloudMat = new THREE.MeshPhongMaterial({
+        map: loader.load(TEXTURES.clouds),
+        transparent: true,
+        opacity: 0.4
+    });
+    cloud = new THREE.Mesh(cloudGeo, cloudMat);
+    earth.add(cloud);
+
+    // 地轴倾角：绕X轴倾斜23.5度，使南北极连线（Y轴）相对公转平面倾斜
+    earth.rotation.x = THREE.MathUtils.degToRad(23.5);
+}
+
+function createSpace() {
+    const loader = new THREE.TextureLoader();
+    const starGeo = new THREE.SphereGeometry(90, 32, 32);
+    const starMat = new THREE.MeshBasicMaterial({
+        map: loader.load(TEXTURES.stars),
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.5
+    });
+    const stars = new THREE.Mesh(starGeo, starMat);
+    scene.add(stars);
+}
+
+function createSunArrow() {
+    sunArrowGroup = new THREE.Group();
+    scene.add(sunArrowGroup);
+}
+
+function updateSunArrow() {
+    if (!sunArrowGroup) return;
+    while (sunArrowGroup.children.length > 0) {
+        const c = sunArrowGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        sunArrowGroup.remove(c);
+    }
+
+    const R = EARTH_RADIUS;
+    const sunWorldPos = new THREE.Vector3();
+    sunLight.getWorldPosition(sunWorldPos);
+    const sunDir = sunWorldPos.clone().normalize();
+
+    const arrowLen = 5;
+    const tip = sunDir.clone().multiplyScalar(R + 0.3);
+    const base = sunDir.clone().multiplyScalar(R + arrowLen);
+
+    const mid = new THREE.Vector3().addVectors(tip, base).multiplyScalar(0.5);
+    const dir = new THREE.Vector3().subVectors(tip, base).normalize();
+    const len = arrowLen - 0.3;
+
+    const shaftGeo = new THREE.CylinderGeometry(0.12, 0.12, len, 8);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, depthTest: true });
+    const shaft = new THREE.Mesh(shaftGeo, arrowMat);
+    shaft.position.copy(mid);
+    shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    sunArrowGroup.add(shaft);
+
+    const headGeo = new THREE.ConeGeometry(0.35, 1.2, 8);
+    const head = new THREE.Mesh(headGeo, arrowMat);
+    head.position.copy(tip);
+    head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    sunArrowGroup.add(head);
+}
+
+function createSunLatitudeLine() {
+    if (sunLatitudeLine) {
+        sunLatitudeLine.geometry.dispose();
+        sunLatitudeLine.material.dispose();
+        earth.remove(sunLatitudeLine);
+    }
+    const decl = calcDeclination(params.dayOfYear);
+    const declRad = THREE.MathUtils.degToRad(decl);
+    const R = EARTH_RADIUS + 0.09;
+    const r = R * Math.cos(declRad);
+    const y = R * Math.sin(declRad);
+    const geo = new THREE.TorusGeometry(r, 0.045, 16, 100);
+    const mat = new THREE.MeshBasicMaterial({
+        color: 0xff8800,
+        transparent: true,
+        opacity: 0.8,
+        depthTest: true,
+        depthWrite: false
+    });
+    sunLatitudeLine = new THREE.Mesh(geo, mat);
+    sunLatitudeLine.position.y = y;
+    sunLatitudeLine.rotation.x = Math.PI / 2;
+    sunLatitudeLine.visible = params.showSunLatitude;
+    earth.add(sunLatitudeLine);
+
+    if (sunLatitudeLabelN) { sunLatitudeLabelN.material.map.dispose(); sunLatitudeLabelN.material.dispose(); earth.remove(sunLatitudeLabelN); }
+    if (sunLatitudeLabelS) { sunLatitudeLabelS.material.map.dispose(); sunLatitudeLabelS.material.dispose(); earth.remove(sunLatitudeLabelS); }
+
+    const latText = formatLat(decl);
+    const createLatLabel = (text, color) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = color;
+        ctx.font = 'bold 21px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, 128, 36);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.minFilter = THREE.LinearFilter;
+        const spriteMat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false });
+        return new THREE.Sprite(spriteMat);
+    };
+
+    sunLatitudeLabelN = createLatLabel(latText, '#ff8800');
+    sunLatitudeLabelN.position.set(r + 2, y, 0);
+    sunLatitudeLabelN.scale.set(8, 2, 1);
+    sunLatitudeLabelN.visible = params.showSunLatitude;
+    earth.add(sunLatitudeLabelN);
+
+    sunLatitudeLabelS = createLatLabel(latText, '#ff8800');
+    sunLatitudeLabelS.position.set(-(r + 2), y, 0);
+    sunLatitudeLabelS.scale.set(3.5, 0.875, 1);
+    sunLatitudeLabelS.visible = params.showSunLatitude;
+    earth.add(sunLatitudeLabelS);
+}
+
+function clearSunLatitudeLine() {
+    if (sunLatitudeLine) { sunLatitudeLine.geometry.dispose(); sunLatitudeLine.material.dispose(); earth.remove(sunLatitudeLine); sunLatitudeLine = null; }
+    if (sunLatitudeLabelN) { sunLatitudeLabelN.material.map.dispose(); sunLatitudeLabelN.material.dispose(); earth.remove(sunLatitudeLabelN); sunLatitudeLabelN = null; }
+    if (sunLatitudeLabelS) { sunLatitudeLabelS.material.map.dispose(); sunLatitudeLabelS.material.dispose(); earth.remove(sunLatitudeLabelS); sunLatitudeLabelS = null; }
+}
+
+function createSubsolarMarker() {
+    if (subsolarDot) {
+        subsolarDot.geometry.dispose();
+        subsolarDot.material.dispose();
+        scene.remove(subsolarDot);
+    }
+    if (subsolarLabel) {
+        subsolarLabel.material.map.dispose();
+        subsolarLabel.material.dispose();
+        scene.remove(subsolarLabel);
+    }
+
+    const dotGeo = new THREE.SphereGeometry(0.25, 16, 16);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, depthTest: true });
+    subsolarDot = new THREE.Mesh(dotGeo, dotMat);
+    subsolarDot.visible = params.showSunArrow;
+    scene.add(subsolarDot);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ff8800';
+    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('直射点', 128, 28);
+    ctx.fillText('---° ---°', 128, 52);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false });
+    subsolarLabel = new THREE.Sprite(spriteMat);
+    subsolarLabel.scale.set(8, 2, 2);//直射点字体大小设置(8,2,2)中的8是宽，2是高
+    subsolarLabel.visible = params.showSunArrow;
+    scene.add(subsolarLabel);
+}
+
+function updateSubsolarMarker() {
+    if (!subsolarDot || !subsolarLabel) return;
+    const decl = calcDeclination(params.dayOfYear);
+    const R = EARTH_RADIUS;
+    const sunWorldPos = new THREE.Vector3();
+    sunLight.getWorldPosition(sunWorldPos);
+    const sunDir = sunWorldPos.clone().normalize();
+    const pos = sunDir.clone().multiplyScalar(R + 0.15);
+    subsolarDot.position.copy(pos);
+    subsolarLabel.position.copy(sunDir.clone().multiplyScalar(R + 1.5));
+
+    const noonLon = (( (90 - THREE.MathUtils.radToDeg(earth.rotation.y) + 180) % 360 + 360) % 360);
+    const displayLon = noonLon > 180 ? 360 - noonLon : noonLon;
+    const dirChar = noonLon > 180 ? 'W' : 'E';
+    const latStr = formatLat(decl);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffee00';
+    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('☀ 直射点', 128, 22);
+    ctx.font = 'bold 14px Inter, sans-serif';
+    ctx.fillText(latStr + ', ' + displayLon.toFixed(1) + '°' + dirChar, 128, 46);
+    subsolarLabel.material.map.dispose();
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    subsolarLabel.material.map = tex;
+    subsolarLabel.material.needsUpdate = true;
+}
+
+function clearSubsolarMarker() {
+    if (subsolarDot) { subsolarDot.geometry.dispose(); subsolarDot.material.dispose(); scene.remove(subsolarDot); subsolarDot = null; }
+    if (subsolarLabel) { subsolarLabel.material.map.dispose(); subsolarLabel.material.dispose(); scene.remove(subsolarLabel); subsolarLabel = null; }
+}
+
+function createTimeGrids() {
+    timeZoneGroup = new THREE.Group();
+    earth.add(timeZoneGroup);
+
+    // 1. 每 15 度一根经线，代表一小时
+    for (let i = 0; i < 24; i++) {
+        const lon = i * 15;
+        const curve = new THREE.EllipseCurve(
+            0, 0,            // ax, ay
+            EARTH_RADIUS + 0.2, EARTH_RADIUS + 0.2, // xRadius, yRadius
+            0, 2 * Math.PI,  // aStartAngle, aEndAngle
+            false,           // aClockwise
+            0                // aRotation
+        );
+        const points = curve.getPoints(100);
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        
+        // 区分普通时区线和特殊线
+        const isDateLine = (lon === 180);
+        const isPrimeMeridian = (lon === 0);
+        
+        const material = new THREE.LineBasicMaterial({ 
+            color: isDateLine ? 0xff4444 : (isPrimeMeridian ? 0xffffff : 0x4488ff),
+            transparent: true,
+            opacity: isDateLine ? 0.8 : 0.3
+        });
+
+        const line = new THREE.Line(geometry, material);
+        line.rotation.y = THREE.MathUtils.degToRad(lon);
+        timeZoneGroup.add(line);
+    }
+
+    // 2. 赤道线
+    const eqCurve = new THREE.EllipseCurve(0, 0, EARTH_RADIUS + 0.2, EARTH_RADIUS + 0.2, 0, 2 * Math.PI);
+    const eqGeo = new THREE.BufferGeometry().setFromPoints(eqCurve.getPoints(100));
+    const eqLine = new THREE.Line(eqGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }));
+    eqLine.rotation.x = Math.PI / 2;
+    timeZoneGroup.add(eqLine);
+}
+
+// 理论时区数据：每个时区15°宽，中心在15°的整数倍经线上
+const THEORETICAL_ZONES = [];
+for (let i = -12; i <= 12; i++) {
+    if (i === -12) {
+        THEORETICAL_ZONES.push({ offset: -12, center: -176.25, width: 7.5 });
+    } else if (i === 12) {
+        THEORETICAL_ZONES.push({ offset: 12, center: 176.25, width: 7.5 });
+    } else {
+        THEORETICAL_ZONES.push({ offset: i, center: i * 15, width: 15 });
+    }
+}
+
+const ZONE_COLORS = [
+    0x3b82f6, 0x22c55e, 0xf59e0b, 0xef4444, 0x8b5cf6,
+    0x06b6d4, 0xf97316, 0xec4899, 0x10b981, 0x6366f1,
+    0x14b8a6, 0xd946ef
+];
+
+function getZoneColor(offset) {
+    return ZONE_COLORS[Math.abs(Math.round(offset)) % ZONE_COLORS.length];
+}
+
+function createSphericalBand(centerLon, halfWidthDeg, colorHex, opacity) {
+    const R = EARTH_RADIUS + 0.15;
+    const latStart = -75;
+    const latEnd = 75;
+    const latSteps = 16;
+    const lonSteps = Math.max(2, Math.floor(halfWidthDeg * 2 / 3));
+
+    const color = new THREE.Color(colorHex);
+    const positions = [];
+    const colors = [];
+    const indices = [];
+
+    for (let i = 0; i <= latSteps; i++) {
+        const lat = latStart + (latEnd - latStart) * i / latSteps;
+        const phi = THREE.MathUtils.degToRad(90 - lat);
+        for (let j = 0; j <= lonSteps; j++) {
+            const lon = centerLon - halfWidthDeg + 2 * halfWidthDeg * j / lonSteps;
+            const theta = THREE.MathUtils.degToRad(lon);
+            const x = R * Math.sin(phi) * Math.cos(theta);
+            const y = R * Math.cos(phi);
+            const z = R * Math.sin(phi) * Math.sin(theta);
+            positions.push(x, y, z);
+            colors.push(color.r, color.g, color.b);
+        }
+    }
+
+    for (let i = 0; i < latSteps; i++) {
+        for (let j = 0; j < lonSteps; j++) {
+            const a = i * (lonSteps + 1) + j;
+            const b = a + 1;
+            const c = a + (lonSteps + 1);
+            const d = c + 1;
+            indices.push(a, b, d);
+            indices.push(a, d, c);
+        }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: opacity,
+        side: THREE.DoubleSide,
+        depthWrite: false
+    });
+
+    return new THREE.Mesh(geo, mat);
+}
+
+function createTimeZoneBands() {
+    if (timeZoneBandsGroup) {
+        earth.remove(timeZoneBandsGroup);
+        timeZoneBandsGroup.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+    }
+    timeZoneBandsGroup = new THREE.Group();
+    timeZoneBandsGroup.visible = params.showTimeZones;
+    earth.add(timeZoneBandsGroup);
+
+    const baseOpacity = 0.18;
+
+    THEORETICAL_ZONES.forEach(zone => {
+        const colorHex = getZoneColor(zone.offset);
+        const halfWidth = zone.width / 2;
+        const band = createSphericalBand(zone.center, halfWidth, colorHex, baseOpacity);
+        timeZoneBandsGroup.add(band);
+
+        const edgeCurve = new THREE.EllipseCurve(0, 0, R_EDGE, R_EDGE, 0, 2 * Math.PI);
+        const edgePts = edgeCurve.getPoints(80);
+        const edgeGeo = new THREE.BufferGeometry().setFromPoints(edgePts);
+        const edgeLine = new THREE.Line(edgeGeo, new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.12
+        }));
+        edgeLine.rotation.y = THREE.MathUtils.degToRad(zone.center - halfWidth);
+        timeZoneBandsGroup.add(edgeLine);
+    });
+
+    createTimeZoneLabels();
+}
+
+function createTimeZoneLabels() {
+    if (timeZoneLabelsGroup) {
+        earth.remove(timeZoneLabelsGroup);
+        timeZoneLabelsGroup.traverse(c => { if (c.material && c.material.map) c.material.map.dispose(); if (c.material) c.material.dispose(); });
+    }
+    timeZoneLabelsGroup = new THREE.Group();
+    timeZoneLabelsGroup.visible = params.showTimeZones && params.showTimeZoneLabels;
+    earth.add(timeZoneLabelsGroup);
+
+    const R = EARTH_RADIUS + 0.9;
+    THEORETICAL_ZONES.forEach(zone => {
+        const label = makeTZLabelSprite(formatUTCOffset(zone.offset));
+        const lonRad = THREE.MathUtils.degToRad(zone.center);
+        label.position.set(R * Math.cos(lonRad), 0, R * Math.sin(lonRad));
+        label.scale.set(3.8, 1.9, 1);
+        timeZoneLabelsGroup.add(label);
+    });
+}
+
+function makeTZLabelSprite(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 48px Inter, sans-serif';
+    ctx.fillStyle = color || '#88ccff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 256, 64);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+    });
+    return new THREE.Sprite(spriteMat);
+}
+
+function formatUTCOffset(offset) {
+    if (offset === 0) return '中时区';
+    const swap = params.flatMapMode;
+    if (offset < 0) return (swap ? '西' : '东') + chineseNumber(Math.abs(offset)) + '区';
+    return (swap ? '东' : '西') + chineseNumber(offset) + '区';
+}
+
+function chineseNumber(n) {
+    const map = ['零','一','二','三','四','五','六','七','八','九','十','十一','十二'];
+    return map[n] || '' + n;
+}
+
+const R_EDGE = EARTH_RADIUS + 0.17;
+
+function createTubeMeridian(lon, colorHex, tubeRadius, opacity) {
+    const R = EARTH_RADIUS + 0.25;
+    const segments = 120;
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+        const lat = -90 + 180 * i / segments;
+        const phi = THREE.MathUtils.degToRad(90 - lat);
+        const theta = THREE.MathUtils.degToRad(lon);
+        const x = R * Math.sin(phi) * Math.cos(theta);
+        const y = R * Math.cos(phi);
+        const z = R * Math.sin(phi) * Math.sin(theta);
+        points.push(new THREE.Vector3(x, y, z));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const tubeGeo = new THREE.TubeGeometry(curve, 120, tubeRadius, 8, false);
+    const tubeMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: opacity,
+        depthTest: true,
+        depthWrite: false
+    });
+    return new THREE.Mesh(tubeGeo, tubeMat);
+}
+
+function createThickMeridians() {
+    thickLinesGroup = new THREE.Group();
+    earth.add(thickLinesGroup);
+
+    const primeMeridian = createTubeMeridian(0, 0xffffff, 0.06, 0.9);
+    thickLinesGroup.add(primeMeridian);
+
+    const dateLineTube = createTubeMeridian(180, 0xff4444, 0.06, 0.9);
+    thickLinesGroup.add(dateLineTube);
+}
+
+function createDateLineLabels() {
+    dateLineLabelPivot = new THREE.Group();
+    earth.add(dateLineLabelPivot);
+
+    const R2 = EARTH_RADIUS + 1.5;
+    const angle = 5 * Math.PI / 180;
+    const cx = R2 * Math.cos(angle);
+    const sz = R2 * Math.sin(angle);
+
+    dateLineNewLabel = makeTextSprite('新日期\n(+1天)', 'rgba(68,204,68,0.9)');
+    dateLineNewLabel.position.set(-cx, 0, -sz);
+    dateLineNewLabel.scale.set(4, 2, 1);
+    dateLineNewLabel.visible = params.showDateMarks;
+    dateLineLabelPivot.add(dateLineNewLabel);
+
+    dateLineOldLabel = makeTextSprite('旧日期', 'rgba(68,68,204,0.9)');
+    dateLineOldLabel.position.set(-cx, 0, sz);
+    dateLineOldLabel.scale.set(3, 1.5, 1);
+    dateLineOldLabel.visible = params.showDateMarks;
+    dateLineLabelPivot.add(dateLineOldLabel);
+}
+
+function createMidnightMeridian() {
+    midnightLinePivot = new THREE.Group();
+    earth.add(midnightLinePivot);
+
+    const midnightTube = createTubeMeridian(0, 0xffdd00, 0.07, 0.85);
+    midnightLinePivot.add(midnightTube);
+
+    const R2 = EARTH_RADIUS + 1.5;
+    const angle = 5 * Math.PI / 180;
+    const cx = R2 * Math.cos(angle);
+    const sz = R2 * Math.sin(angle);
+
+    midnightNewLabel = makeTextSprite('新日期\n(+1天)', 'rgba(68,204,68,0.9)');
+    midnightNewLabel.position.set(cx, 0, -sz);
+    midnightNewLabel.scale.set(4, 2, 1);
+    midnightNewLabel.visible = params.showDateMarks;
+    midnightLinePivot.add(midnightNewLabel);
+
+    midnightOldLabel = makeTextSprite('旧日期', 'rgba(68,68,204,0.9)');
+    midnightOldLabel.position.set(cx, 0, sz);
+    midnightOldLabel.scale.set(3, 1.5, 1);
+    midnightOldLabel.visible = params.showDateMarks;
+    midnightLinePivot.add(midnightOldLabel);
+}
+
+function createMeridianLabels() {
+    meridianLabelsGroup = new THREE.Group();
+    meridianLabelsGroup.visible = params.showMeridianLabels;
+    earth.add(meridianLabelsGroup);
+
+    const R2 = EARTH_RADIUS + 1.5;
+    const polarAngle = 75 * Math.PI / 180;
+    const px = R2 * Math.cos(polarAngle);
+    const py = R2 * Math.sin(polarAngle);
+
+    const zeroLabel = makeTextSprite('0°', 'rgba(255,255,255,0.85)');
+    zeroLabel.position.set(R2, 0, 0);
+    zeroLabel.scale.set(4, 2, 1);
+    meridianLabelsGroup.add(zeroLabel);
+
+    const zeroLabelN = makeTextSprite('0°', 'rgba(255,255,255,0.85)');
+    zeroLabelN.position.set(px, py, 0);
+    zeroLabelN.scale.set(3.5, 1.5, 1);
+    meridianLabelsGroup.add(zeroLabelN);
+
+    const zeroLabelS = makeTextSprite('0°', 'rgba(255,255,255,0.85)');
+    zeroLabelS.position.set(px, -py, 0);
+    zeroLabelS.scale.set(3.5, 1.5, 1);
+    meridianLabelsGroup.add(zeroLabelS);
+
+    const dateLineLabel = makeTextSprite('180°', 'rgba(255,68,68,0.85)');
+    dateLineLabel.position.set(-R2, 0, 0);
+    dateLineLabel.scale.set(4, 2, 1);
+    meridianLabelsGroup.add(dateLineLabel);
+
+    const dateLineLabelN = makeTextSprite('180°', 'rgba(255,68,68,0.85)');
+    dateLineLabelN.position.set(-px, py, 0);
+    dateLineLabelN.scale.set(3.5, 1.5, 1);
+    meridianLabelsGroup.add(dateLineLabelN);
+
+    const dateLineLabelS = makeTextSprite('180°', 'rgba(255,68,68,0.85)');
+    dateLineLabelS.position.set(-px, -py, 0);
+    dateLineLabelS.scale.set(3.5, 1.5, 1);
+    meridianLabelsGroup.add(dateLineLabelS);
+
+    midnightLonLabel = makeTextSprite('0°', 'rgba(255,221,0,0.85)');
+    midnightLonLabel.position.set(R2, 0, 0);
+    midnightLonLabel.scale.set(4, 2, 1);
+    midnightLonLabel.visible = params.showMeridianLabels;
+    midnightLinePivot.add(midnightLonLabel);
+
+    midnightLonLabelN = makeTextSprite('0°', 'rgba(255,221,0,0.85)');
+    midnightLonLabelN.position.set(px, py, 0);
+    midnightLonLabelN.scale.set(3.5, 1.5, 1);
+    midnightLonLabelN.visible = params.showMeridianLabels;
+    midnightLinePivot.add(midnightLonLabelN);
+
+    midnightLonLabelS = makeTextSprite('0°', 'rgba(255,221,0,0.85)');
+    midnightLonLabelS.position.set(px, -py, 0);
+    midnightLonLabelS.scale.set(3.5, 1.5, 1);
+    midnightLonLabelS.visible = params.showMeridianLabels;
+    midnightLinePivot.add(midnightLonLabelS);
+}
+
+function placeCustomMarker(lon, lat, displayLon, placeName) {
+    removeCustomMarker();
+    params.customMarker = { lon, lat, displayLon, placeName: placeName || '' };
+
+    customMarkerGroup = new THREE.Group();
+    earth.add(customMarkerGroup);
+
+    const R = EARTH_RADIUS + 0.15;
+    const lonRad = THREE.MathUtils.degToRad(lon);
+    const latRad = THREE.MathUtils.degToRad(lat);
+    const cx = R * Math.cos(latRad) * Math.cos(lonRad);
+    const cy = R * Math.sin(latRad);
+    const cz = R * Math.cos(latRad) * Math.sin(lonRad);
+
+    const dotGeo = new THREE.SphereGeometry(0.35, 16, 16);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true });
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    dot.position.set(cx, cy, cz);
+    customMarkerGroup.add(dot);
+
+    const ringGeo = new THREE.TorusGeometry(0.55, 0.08, 8, 16);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true, depthWrite: false });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.set(cx, cy, cz);
+    customMarkerGroup.add(ring);
+
+    const latCircleRadius = R * Math.cos(latRad);
+    const latCircleGeo = new THREE.TorusGeometry(latCircleRadius, 0.05, 8, 80);
+    const latCircleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: true, depthWrite: false });
+    const latCircle = new THREE.Mesh(latCircleGeo, latCircleMat);
+    latCircle.position.y = cy;
+    latCircle.rotation.x = Math.PI / 2;
+    customMarkerGroup.add(latCircle);
+
+    const labelR = R + 1.8;
+    const lx = labelR * Math.cos(latRad) * Math.cos(lonRad);
+    const ly = labelR * Math.sin(latRad);
+    const lz = labelR * Math.cos(latRad) * Math.sin(lonRad);
+    const coordText = formatLon(displayLon) + ', ' + formatLat(lat);
+    const nameLine = (placeName && placeName.trim()) ? placeName.trim() + '\n' : '';
+    customMarkerLabel = makeTextSprite(nameLine + coordText + '\n00:00', 'rgba(255,68,68,0.9)');
+    customMarkerLabel.position.set(lx, ly, lz);
+    customMarkerLabel.scale.set(4.5, 3, 1);
+    customMarkerGroup.add(customMarkerLabel);
+
+    document.getElementById('btnPlaceMarker').classList.add('hidden');
+    document.getElementById('btnRemoveMarker').classList.remove('hidden');
+}
+
+function removeCustomMarker() {
+    if (customMarkerGroup) {
+        earth.remove(customMarkerGroup);
+        customMarkerGroup.traverse(c => {
+            if (c.material) {
+                if (c.material.map) c.material.map.dispose();
+                c.material.dispose();
+            }
+            if (c.geometry) c.geometry.dispose();
+        });
+        customMarkerGroup = null;
+        customMarkerLabel = null;
+    }
+    params.customMarker = null;
+    document.getElementById('btnPlaceMarker').classList.remove('hidden');
+    document.getElementById('btnRemoveMarker').classList.add('hidden');
+    const lonLabel = document.getElementById('markerLocalTime');
+    if (lonLabel) lonLabel.classList.add('hidden');
+}
+
+function updateCustomMarkerLabel() {
+    if (!customMarkerLabel || !params.customMarker) return;
+    const displayLon = params.customMarker.displayLon !== undefined ? params.customMarker.displayLon : params.customMarker.lon;
+    const utcTotalHours = getUtcTotalHours();
+    const localHours = ((utcTotalHours + displayLon / 15) % 24 + 24) % 24;
+    const h = Math.floor(localHours);
+    const m = Math.floor((localHours - h) * 60);
+    const s = Math.floor(((localHours - h) * 60 - m) * 60);
+    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const coordStr = formatLon(displayLon) + ', ' + formatLat(params.customMarker.lat);
+    const placeName = params.customMarker.placeName;
+    const nameLine = (placeName && placeName.trim()) ? placeName.trim() + '\n' : '';
+    updateSpriteLabel(customMarkerLabel, nameLine + coordStr + '\n' + timeStr, 'rgba(255,68,68,0.9)');
+
+    const lonLabel = document.getElementById('markerLocalTime');
+    if (lonLabel) {
+        lonLabel.classList.remove('hidden');
+        lonLabel.innerText = formatLon(displayLon) + ' ' + formatLat(params.customMarker.lat)
+            + '  地方时 ' + `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+}
+
+function getUtcTotalHours() {
+    const midnightLonDeg = 90 - THREE.MathUtils.radToDeg(earth.rotation.y);
+    const noonLon = ((midnightLonDeg + 180) % 360 + 360) % 360;
+    return ((12 - noonLon / 15) % 24 + 24) % 24;
+}
+
+function handleMapClick(lon, lat, flipLabel) {
+    lon = Math.round(lon);
+    lat = Math.round(lat);
+    const displayLon = flipLabel ? -lon : lon;
+    placeCustomMarker(lon, lat, displayLon, '');
+    document.getElementById('markerLon').value = Math.abs(displayLon);
+    document.getElementById('markerLonDir').value = displayLon >= 0 ? 'E' : 'W';
+    document.getElementById('markerLat').value = Math.abs(lat);
+    document.getElementById('markerLatDir').value = lat >= 0 ? 'N' : 'S';
+}
+
+function createTerminator() {
+    const R = EARTH_RADIUS + 0.09;
+    const ringGeo = new THREE.TorusGeometry(R, 0.045, 16, 100);
+    const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xff8800,
+        transparent: true,
+        opacity: 0.8,
+        depthTest: true,
+        depthWrite: false
+    });
+    terminatorLine = new THREE.Mesh(ringGeo, ringMat);
+    terminatorLine.visible = params.showNight;
+    scene.add(terminatorLine);
+    updateTerminatorRotation();
+}
+
+function createDateMarks() {
+    dateMarkPivot = new THREE.Group();
+    dateMarkPivot.visible = params.showDateMarks;
+    earth.add(dateMarkPivot);
+
+    const R = EARTH_RADIUS + 0.06;
+
+    const newDayGeo = new THREE.SphereGeometry(R, 48, 48, 0, Math.PI, 0, Math.PI);
+    const newDayMat = new THREE.MeshBasicMaterial({
+        color: 0x44cc44,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false
+    });
+    newDayMesh = new THREE.Mesh(newDayGeo, newDayMat);
+    dateMarkPivot.add(newDayMesh);
+
+    const oldDayGeo = new THREE.SphereGeometry(R, 48, 48, Math.PI, Math.PI, 0, Math.PI);
+    const oldDayMat = new THREE.MeshBasicMaterial({
+        color: 0x4444cc,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false
+    });
+    oldDayMesh = new THREE.Mesh(oldDayGeo, oldDayMat);
+    dateMarkPivot.add(oldDayMesh);
+
+    createDateArrows();
+}
+
+function createDateArrows() {
+    dateArrowGroup = new THREE.Group();
+    earth.add(dateArrowGroup);
+
+    const eqR = EARTH_RADIUS + 1.8;
+    const tubeR = 0.07;
+    const segs = 80;
+
+    function makeArcPoints(startAngle, endAngle, steps) {
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+            const a = startAngle + (endAngle - startAngle) * i / steps;
+            pts.push(new THREE.Vector3(eqR * Math.cos(a), 0, eqR * Math.sin(a)));
+        }
+        return new THREE.CatmullRomCurve3(pts);
+    }
+
+    const initNewCurve = makeArcPoints(Math.PI * 2, Math.PI, segs);
+    const newMat = new THREE.MeshBasicMaterial({
+        color: 0x22c55e,
+        transparent: true,
+        opacity: 0.55,
+        depthTest: true,
+        depthWrite: false
+    });
+    newDateTube = new THREE.Mesh(new THREE.TubeGeometry(initNewCurve, 64, tubeR, 8, false), newMat);
+    dateArrowGroup.add(newDateTube);
+
+    newDateHead = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8, 8), newMat);
+    dateArrowGroup.add(newDateHead);
+
+    const initOldCurve = makeArcPoints(Math.PI, 0, segs);
+    const oldMat = new THREE.MeshBasicMaterial({
+        color: 0x3b82f6,
+        transparent: true,
+        opacity: 0.55,
+        depthTest: true,
+        depthWrite: false
+    });
+    oldDateTube = new THREE.Mesh(new THREE.TubeGeometry(initOldCurve, 64, tubeR, 8, false), oldMat);
+    dateArrowGroup.add(oldDateTube);
+
+    oldDateHead = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8, 8), oldMat);
+    dateArrowGroup.add(oldDateHead);
+
+    newDateArrowLabel = makeTextSprite('', 'rgba(34,197,94,0.95)');
+    newDateArrowLabel.scale.set(5, 2.5, 1);
+    dateArrowGroup.add(newDateArrowLabel);
+
+    oldDateArrowLabel = makeTextSprite('', 'rgba(100,149,237,0.95)');
+    oldDateArrowLabel.scale.set(5, 2.5, 1);
+    dateArrowGroup.add(oldDateArrowLabel);
+}
+
+function makeTextSprite(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 192;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 36px Inter, sans-serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = text.split('\n');
+    const lineHeight = 40;
+    const totalHeight = lines.length * lineHeight;
+    const startY = (canvas.height - totalHeight) / 2 + lineHeight / 2;
+    lines.forEach((line, i) => {
+        ctx.fillText(line, canvas.width / 2, startY + i * lineHeight);
+    });
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    return sprite;
+}
+
+function updateSpriteLabel(sprite, text, color) {
+    const texture = sprite.material.map;
+    const canvas = texture.image;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = 'Bold 36px Inter, sans-serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = text.split('\n');
+    const lineHeight = 40;
+    const totalHeight = lines.length * lineHeight;
+    const startY = (canvas.height - totalHeight) / 2 + lineHeight / 2;
+    lines.forEach((line, i) => {
+        ctx.fillText(line, canvas.width / 2, startY + i * lineHeight);
+    });
+    texture.needsUpdate = true;
+}
+
+function createNightOverlay() {
+    nightOverlay = new THREE.Group();
+    nightOverlay.visible = params.showNight;
+    scene.add(nightOverlay);
+
+    const nightGeo = new THREE.SphereGeometry(EARTH_RADIUS + 0.2, 80, 80);
+    const nightMat = new THREE.ShaderMaterial({
+        uniforms: {
+            sunDirection: { value: new THREE.Vector3(0, 0, 1) }
+        },
+        vertexShader: `
+            varying vec3 vWorldNormal;
+            varying vec3 vWorldPos;
+            void main() {
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vWorldPos = worldPos.xyz;
+                vWorldNormal = normalize(mat3(modelMatrix) * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vWorldNormal;
+            varying vec3 vWorldPos;
+            uniform vec3 sunDirection;
+            void main() {
+                vec3 toSun = normalize(sunDirection);
+                float d = dot(normalize(vWorldPos), toSun);
+                float night = 1.0 - smoothstep(-0.15, 0.15, d);
+                float alpha = night * 0.65;
+                gl_FragColor = vec4(0.0, 0.0, 0.07, alpha);
+            }
+        `,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+    });
+    nightShaderMesh = new THREE.Mesh(nightGeo, nightMat);
+    nightOverlay.add(nightShaderMesh);
+
+    createDayNightLabels();
+}
+
+function createDayNightLabels() {
+    if (dayNightLabelsGroup) {
+        scene.remove(dayNightLabelsGroup);
+        dayNightLabelsGroup.traverse(c => { if (c.material && c.material.map) c.material.map.dispose(); if (c.material) c.material.dispose(); });
+    }
+    dayNightLabelsGroup = new THREE.Group();
+    dayNightLabelsGroup.visible = params.showNight && params.showDayNightLabels;
+    nightOverlay.add(dayNightLabelsGroup);
+
+    const R = EARTH_RADIUS + 2.5;
+    const dayLabel = makeBigTextSprite('昼', 'rgba(255,200,50,0.9)');
+    dayLabel.position.set(0, 0, R);
+    dayLabel.scale.set(6, 4, 1);
+    dayNightLabelsGroup.add(dayLabel);
+
+    const nightLabel = makeBigTextSprite('夜', 'rgba(100,150,255,0.9)');
+    nightLabel.position.set(0, 0, -R);
+    nightLabel.scale.set(6, 4, 1);
+    dayNightLabelsGroup.add(nightLabel);
+}
+
+function makeBigTextSprite(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 120px Inter, sans-serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 128);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+    });
+    return new THREE.Sprite(spriteMat);
+}
+
+function setMidnightMeridian(lon) {
+    params.midnightLon = lon;
+    earth.rotation.y = THREE.MathUtils.degToRad(90 - lon);
+}
+
+function toggleTimeZones() {
+    params.showTimeZones = !params.showTimeZones;
+    if (timeZoneBandsGroup) timeZoneBandsGroup.visible = params.showTimeZones;
+    if (timeZoneLabelsGroup) timeZoneLabelsGroup.visible = params.showTimeZones && params.showTimeZoneLabels;
+    updateSubControls();
+    const btn = document.getElementById('toggleTimeZones');
+    if (params.showTimeZones) {
+        btn.classList.add('bg-blue-500/20', 'border-blue-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        params.showTimeZoneLabels = false;
+        updateTZLabelsButton();
+        btn.classList.remove('bg-blue-500/20', 'border-blue-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function toggleNight() {
+    params.showNight = !params.showNight;
+    if (nightOverlay) nightOverlay.visible = params.showNight;
+    if (terminatorLine) terminatorLine.visible = params.showNight;
+    if (dayNightLabelsGroup) dayNightLabelsGroup.visible = params.showNight && params.showDayNightLabels;
+    updateSubControls();
+    const btn = document.getElementById('toggleNight');
+    if (params.showNight) {
+        btn.classList.add('bg-indigo-500/20', 'border-indigo-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        params.showDayNightLabels = false;
+        updateDNLabelsButton();
+        btn.classList.remove('bg-indigo-500/20', 'border-indigo-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function updateSubControls() {
+    const sub = document.getElementById('subControls');
+    const tzBtn = document.getElementById('toggleTZLabels');
+    const dnBtn = document.getElementById('toggleDNLabels');
+    sub.style.display = (params.showTimeZones || params.showNight) ? '' : 'none';
+    tzBtn.style.display = params.showTimeZones ? '' : 'none';
+    dnBtn.style.display = params.showNight ? '' : 'none';
+}
+
+function toggleTZLabels() {
+    params.showTimeZoneLabels = !params.showTimeZoneLabels;
+    if (timeZoneLabelsGroup) timeZoneLabelsGroup.visible = params.showTimeZoneLabels;
+    updateTZLabelsButton();
+}
+
+function updateTZLabelsButton() {
+    const btn = document.getElementById('toggleTZLabels');
+    if (params.showTimeZoneLabels) {
+        btn.classList.add('bg-cyan-500/20', 'border-cyan-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        btn.classList.remove('bg-cyan-500/20', 'border-cyan-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function toggleDNLabels() {
+    params.showDayNightLabels = !params.showDayNightLabels;
+    if (dayNightLabelsGroup) dayNightLabelsGroup.visible = params.showDayNightLabels;
+    updateDNLabelsButton();
+}
+
+function updateDNLabelsButton() {
+    const btn = document.getElementById('toggleDNLabels');
+    if (params.showDayNightLabels) {
+        btn.classList.add('bg-purple-500/20', 'border-purple-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        btn.classList.remove('bg-purple-500/20', 'border-purple-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function togglePause() {
+    params.paused = !params.paused;
+    const btn = document.getElementById('btnPause');
+    if (params.paused) {
+        btn.innerText = '▶ 恢复自转';
+        btn.classList.add('bg-yellow-500/20', 'border-yellow-500/50');
+    } else {
+        btn.innerText = '⏸ 暂停自转';
+        btn.classList.remove('bg-yellow-500/20', 'border-yellow-500/50');
+    }
+}
+
+function toggleDateMarks() {
+    params.showDateMarks = !params.showDateMarks;
+    if (dateMarkPivot) dateMarkPivot.visible = params.showDateMarks;
+    if (dateLineLabelPivot) dateLineLabelPivot.visible = params.showDateMarks;
+    if (midnightNewLabel) midnightNewLabel.visible = params.showDateMarks;
+    if (midnightOldLabel) midnightOldLabel.visible = params.showDateMarks;
+    if (dateLineNewLabel) dateLineNewLabel.visible = params.showDateMarks;
+    if (dateLineOldLabel) dateLineOldLabel.visible = params.showDateMarks;
+    if (dateArrowGroup) dateArrowGroup.visible = params.showDateMarks;
+    if (params.showDateMarks) updateDateArrowLabels();
+    updateDateArrows();
+    const btn = document.getElementById('toggleDateMarks');
+    if (params.showDateMarks) {
+        btn.classList.add('bg-emerald-500/20', 'border-emerald-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        btn.classList.remove('bg-emerald-500/20', 'border-emerald-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function updateDateArrowLabels() {
+    if (!newDateArrowLabel || !oldDateArrowLabel) return;
+    const dateStr = getDateString(params.dayOfYear);
+    const nextDateStr = getDateString((params.dayOfYear % 365) + 1);
+    updateSpriteLabel(newDateArrowLabel, '➤ 新日期\n' + nextDateStr + '\n(+1天)', 'rgba(34,197,94,0.95)');
+    updateSpriteLabel(oldDateArrowLabel, '➤ 旧日期\n' + dateStr, 'rgba(100,149,237,0.95)');
+}
+
+function updateDateArrows() {
+    if (!newDateTube || !oldDateTube) return;
+    if (!dateArrowGroup || !dateArrowGroup.visible) return;
+
+    dateArrowGroup.rotation.y = Math.PI / 2 - earth.rotation.y;
+
+    const eqR = EARTH_RADIUS + 1.8;
+    const tubeR = 0.07;
+
+    const dateLineArcAngle = ((3 * Math.PI / 2 - earth.rotation.y) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+
+    const newSpan = Math.PI * 2 - dateLineArcAngle;
+    const oldSpan = dateLineArcAngle;
+
+    const effectiveNewSpan = Math.max(0.002, newSpan);
+    const effectiveOldSpan = Math.max(0.002, oldSpan);
+
+    function makeArcPoints(startAngle, endAngle, steps) {
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+            const a = startAngle + (endAngle - startAngle) * i / steps;
+            pts.push(new THREE.Vector3(eqR * Math.cos(a), 0, eqR * Math.sin(a)));
+        }
+        return new THREE.CatmullRomCurve3(pts);
+    }
+
+    const newSegs = Math.max(8, Math.round(80 * effectiveNewSpan / (Math.PI * 2)));
+    const newCurve = makeArcPoints(0, -effectiveNewSpan, newSegs);
+    newDateTube.geometry.dispose();
+    newDateTube.geometry = new THREE.TubeGeometry(newCurve, 64, tubeR, 8, false);
+
+    const dlX = eqR * Math.cos(dateLineArcAngle);
+    const dlZ = eqR * Math.sin(dateLineArcAngle);
+    newDateHead.position.set(dlX, 0, dlZ);
+    const newTan = new THREE.Vector3(Math.sin(dateLineArcAngle), 0, -Math.cos(dateLineArcAngle));
+    newDateHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), newTan);
+
+    const oldSegs = Math.max(8, Math.round(80 * effectiveOldSpan / (Math.PI * 2)));
+    const oldCurve = makeArcPoints(dateLineArcAngle, dateLineArcAngle - effectiveOldSpan, oldSegs);
+    oldDateTube.geometry.dispose();
+    oldDateTube.geometry = new THREE.TubeGeometry(oldCurve, 64, tubeR, 8, false);
+
+    oldDateHead.position.set(eqR, 0, 0);
+    oldDateHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1));
+
+    const midNewAngle = -newSpan / 2;
+    newDateArrowLabel.position.set(
+        eqR * Math.cos(midNewAngle), 0, eqR * Math.sin(midNewAngle)
+    );
+
+    const midOldAngle = dateLineArcAngle - oldSpan / 2;
+    oldDateArrowLabel.position.set(
+        eqR * Math.cos(midOldAngle), 0, eqR * Math.sin(midOldAngle)
+    );
+
+    if (newDayMesh && oldDayMesh && dateMarkPivot && dateMarkPivot.visible) {
+        const dateLinePhi = ((earth.rotation.y - Math.PI / 2) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+        const newDayPhiLength = Math.max(0.002, ((dateLinePhi - Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2));
+
+        newDayMesh.geometry.dispose();
+        newDayMesh.geometry = new THREE.SphereGeometry(EARTH_RADIUS + 0.06, 48, 48, Math.PI, newDayPhiLength, 0, Math.PI);
+
+        oldDayMesh.geometry.dispose();
+        oldDayMesh.geometry = new THREE.SphereGeometry(EARTH_RADIUS + 0.06, 48, 48, dateLinePhi, Math.PI * 2 - newDayPhiLength, 0, Math.PI);
+    }
+}
+
+function toggleMeridianLabels() {
+    params.showMeridianLabels = !params.showMeridianLabels;
+    if (meridianLabelsGroup) meridianLabelsGroup.visible = params.showMeridianLabels;
+    if (midnightLonLabel) midnightLonLabel.visible = params.showMeridianLabels;
+    if (midnightLonLabelN) midnightLonLabelN.visible = params.showMeridianLabels;
+    if (midnightLonLabelS) midnightLonLabelS.visible = params.showMeridianLabels;
+    const btn = document.getElementById('toggleMeridianLabels');
+    if (params.showMeridianLabels) {
+        btn.classList.add('bg-amber-500/20', 'border-amber-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        btn.classList.remove('bg-amber-500/20', 'border-amber-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function toggleSunArrow() {
+    if (params.flatMapMode) {
+        params.showSubsolar2D = !params.showSubsolar2D;
+        const btn = document.getElementById('toggleSunArrow');
+        if (params.showSubsolar2D) {
+            btn.classList.add('bg-yellow-500/20', 'border-yellow-500/50');
+            btn.classList.remove('bg-white/5', 'border-white/10');
+        } else {
+            btn.classList.remove('bg-yellow-500/20', 'border-yellow-500/50');
+            btn.classList.add('bg-white/5', 'border-white/10');
+        }
+        drawFlatMap();
+        return;
+    }
+    params.showSunArrow = !params.showSunArrow;
+    const btn = document.getElementById('toggleSunArrow');
+    if (params.showSunArrow) {
+        btn.classList.add('bg-yellow-500/20', 'border-yellow-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+        if (!subsolarDot) createSubsolarMarker();
+    } else {
+        btn.classList.remove('bg-yellow-500/20', 'border-yellow-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+    if (!params.showSunArrow && !params.showSunLatitude) {
+        clearSunLatitudeLine();
+        clearSubsolarMarker();
+    }
+    if (sunArrowGroup) sunArrowGroup.visible = params.showSunArrow;
+    if (subsolarDot) subsolarDot.visible = params.showSunArrow;
+    if (subsolarLabel) subsolarLabel.visible = params.showSunArrow;
+}
+
+function toggleSunLat() {
+    if (params.flatMapMode) {
+        params.showSunLat2D = !params.showSunLat2D;
+        const btn = document.getElementById('toggleSunLat');
+        if (params.showSunLat2D) {
+            btn.classList.add('bg-orange-500/20', 'border-orange-500/50');
+            btn.classList.remove('bg-white/5', 'border-white/10');
+        } else {
+            btn.classList.remove('bg-orange-500/20', 'border-orange-500/50');
+            btn.classList.add('bg-white/5', 'border-white/10');
+        }
+        drawFlatMap();
+        return;
+    }
+    params.showSunLatitude = !params.showSunLatitude;
+    const btn = document.getElementById('toggleSunLat');
+    if (params.showSunLatitude) {
+        btn.classList.add('bg-orange-500/20', 'border-orange-500/50');
+        btn.classList.remove('bg-white/5', 'border-white/10');
+        createSunLatitudeLine();
+    } else {
+        btn.classList.remove('bg-orange-500/20', 'border-orange-500/50');
+        btn.classList.add('bg-white/5', 'border-white/10');
+    }
+    if (sunLatitudeLine) sunLatitudeLine.visible = params.showSunLatitude;
+    if (sunLatitudeLabelN) sunLatitudeLabelN.visible = params.showSunLatitude;
+    if (sunLatitudeLabelS) sunLatitudeLabelS.visible = params.showSunLatitude;
+    if (!params.showSunArrow && !params.showSunLatitude) {
+        clearSunLatitudeLine();
+        clearSubsolarMarker();
+    }
+}
+
+function setupEvents() {
+    const speedSlider = document.getElementById('rotationSpeed');
+    speedSlider.oninput = (e) => {
+        params.rotationSpeed = parseFloat(e.target.value);
+        document.getElementById('speedVal').innerText = params.rotationSpeed.toFixed(1) + 'x';
+    };
+
+    document.getElementById('toggleDateMarks').onclick = () => toggleDateMarks();
+    document.getElementById('toggleMeridianLabels').onclick = () => toggleMeridianLabels();
+    document.getElementById('toggleSunArrow').onclick = () => toggleSunArrow();
+    document.getElementById('toggleSunLat').onclick = () => toggleSunLat();
+    document.getElementById('allowClickMarker').onchange = (e) => {
+        params.allowClickMarker = e.target.checked;
+    };
+
+    document.getElementById('toggleTimeZones').onclick = () => toggleTimeZones();
+
+    document.getElementById('toggleNight').onclick = () => toggleNight();
+
+    document.getElementById('toggleTZLabels').onclick = () => toggleTZLabels();
+
+    document.getElementById('toggleDNLabels').onclick = () => toggleDNLabels();
+
+    document.getElementById('btnPause').onclick = () => togglePause();
+
+    document.getElementById('showDateDist').onclick = () => showDateDistribution();
+
+    document.getElementById('toggleFlatMap').onclick = () => toggleFlatMap();
+    document.getElementById('closeFlatMap').onclick = () => toggleFlatMap();
+
+    document.getElementById('btnPlaceMarker').onclick = () => {
+        let lon = parseFloat(document.getElementById('markerLon').value) || 0;
+        let lat = parseFloat(document.getElementById('markerLat').value) || 0;
+        if (document.getElementById('markerLonDir').value === 'W') lon = -lon;
+        if (document.getElementById('markerLatDir').value === 'S') lat = -lat;
+        const placeName = document.getElementById('markerName').value || '';
+        placeCustomMarker(-lon, lat, lon, placeName);
+    };
+    document.getElementById('btnRemoveMarker').onclick = () => removeCustomMarker();
+
+    document.getElementById('midnightLon').oninput = (e) => {
+        const lon = parseInt(e.target.value);
+        document.getElementById('midnightLonVal').innerText = lon + '°';
+        setMidnightMeridian(lon);
+    };
+
+    document.getElementById('dayOfYear').oninput = (e) => {
+        params.dayOfYear = parseInt(e.target.value);
+        document.getElementById('dayOfYearVal').innerText = getDateString(params.dayOfYear) + ' (' + getDeclString(params.dayOfYear) + ')';
+        setDeclination(params.dayOfYear);
+    };
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    renderer.domElement.addEventListener('click', (e) => {
+        if (params.flatMapMode) return;
+        if (!params.allowClickMarker) return;
+        if (e.target !== renderer.domElement) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        const mouse = new THREE.Vector2(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(earthGlobe, false);
+        if (intersects.length > 0) {
+            const point = intersects[0].point;
+            const localPoint = earth.worldToLocal(point.clone());
+            const lon = THREE.MathUtils.radToDeg(Math.atan2(localPoint.z, localPoint.x));
+            const lat = THREE.MathUtils.radToDeg(Math.asin(localPoint.y / EARTH_RADIUS));
+            handleMapClick(lon, lat, true);
+        }
+    });
+
+    const flatMapCanvas = document.getElementById('flatMapCanvas');
+    flatMapCanvas.addEventListener('click', (e) => {
+        if (!params.flatMapMode) return;
+        if (!params.allowClickMarker) return;
+        const rect = flatMapCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const W = flatMapCanvas.clientWidth;
+        const H = flatMapCanvas.clientHeight;
+        const lon = (x / W) * 360 - 180;
+        const lat = 90 - (y / H) * 180;
+        handleMapClick(lon, lat);
+    });
+
+    makeDraggable(document.getElementById('leftPanelWrapper'), document.querySelector('#leftPanel .drag-handle'));
+    makeDraggable(document.getElementById('rightPanel'), document.querySelector('#rightPanel .drag-handle'));
+}
+
+function getDateString(dayOfYear) {
+    const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const daysInMonth = [31,28,31,30,31,30,31,31,30,31,30,31];
+    let remaining = dayOfYear;
+    let month = 0;
+    while (month < 12 && remaining > daysInMonth[month]) {
+        remaining -= daysInMonth[month];
+        month++;
+    }
+    return months[month] + remaining + '日';
+}
+
+function getDeclString(dayOfYear) {
+    const decl = calcDeclination(dayOfYear);
+    const abs = Math.abs(decl).toFixed(1);
+    if (Math.abs(decl) < 0.05) return '0°';
+    return decl > 0 ? abs + '°N' : abs + '°S';
+}
+
+function formatLon(lon) {
+    if (Math.abs(lon) < 0.5) return '0°';
+    if (lon > 0) return lon + '°E' ;
+    return Math.abs(lon) + '°W';
+}
+
+function formatLat(lat) {
+    if (Math.abs(lat) < 0.5) return '0°';
+    if (lat > 0) return lat + '°N';
+    return Math.abs(lat) + '°S';
+}
+
+function resetEarth() {
+    earth.rotation.y = THREE.MathUtils.degToRad(-116 - 90);
+}
+
+function advanceDay() {
+    params.dayOfYear = params.dayOfYear % 365 + 1;
+    document.getElementById('dayOfYear').value = params.dayOfYear;
+    document.getElementById('dayOfYearVal').innerText = getDateString(params.dayOfYear) + ' (' + getDeclString(params.dayOfYear) + ')';
+    setDeclination(params.dayOfYear);
+}
+
+function showDateDistribution() {
+    const midnightLonDeg = 90 - THREE.MathUtils.radToDeg(earth.rotation.y);
+    const normalizedLon = ((midnightLonDeg % 360) + 540) % 360 - 180;
+    const dateStr = getDateString(params.dayOfYear);
+    const nextDateStr = getDateString(params.dayOfYear % 365 + 1);
+    
+    const isPastMidnight = (() => {
+        const dateLineWorldPos = new THREE.Vector3(-EARTH_RADIUS, 0, 0).applyMatrix4(earth.matrixWorld);
+        return dateLineWorldPos.x > 0;
+    })();
+    
+    const utcTotalHours = (() => {
+        const noonLon = ((normalizedLon + 180) % 360 + 360) % 360;
+        return ((12 - noonLon / 15) % 24 + 24) % 24;
+    })();
+    const utcH = Math.floor(utcTotalHours);
+    const utcM = Math.floor((utcTotalHours - utcH) * 60);
+    
+    const lonStr = formatLon(Math.round(normalizedLon));
+    const alertMsg = [
+        '📅 日期分布',
+        '',
+        '当前日期: ' + dateStr,
+        '赤纬: ' + getDeclString(params.dayOfYear),
+        'UTC: ' + String(utcH).padStart(2, '0') + ':' + String(utcM).padStart(2, '0'),
+        '0时经线: ' + lonStr,
+        '',
+        '旧日期区域: 180°W → ' + lonStr + ' (180°W向东至0时经线'+lonStr+ '为' + dateStr +')',
+        '新日期区域: ' + lonStr + ' → 180°E (0时经线'+lonStr+'以东至180°E为' + nextDateStr + ')',
+        '',
+        '沿0时经线以西为旧日期(' + dateStr + ')',
+        '沿180°经线以东为旧日期(' + dateStr + ')',
+        '新日期(' + nextDateStr + ')在0时经线以东至180°之间'
+    ].join('\n');
+    
+    alert(alertMsg);
+}
+
+function update2DButtonStates() {
+    const sunArrowBtn = document.getElementById('toggleSunArrow');
+    const sunLatBtn = document.getElementById('toggleSunLat');
+    if (params.showSubsolar2D) {
+        sunArrowBtn.classList.add('bg-yellow-500/20', 'border-yellow-500/50');
+        sunArrowBtn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        sunArrowBtn.classList.remove('bg-yellow-500/20', 'border-yellow-500/50');
+        sunArrowBtn.classList.add('bg-white/5', 'border-white/10');
+    }
+    if (params.showSunLat2D) {
+        sunLatBtn.classList.add('bg-orange-500/20', 'border-orange-500/50');
+        sunLatBtn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        sunLatBtn.classList.remove('bg-orange-500/20', 'border-orange-500/50');
+        sunLatBtn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function update3DButtonStates() {
+    const sunArrowBtn = document.getElementById('toggleSunArrow');
+    const sunLatBtn = document.getElementById('toggleSunLat');
+    if (params.showSunArrow) {
+        sunArrowBtn.classList.add('bg-yellow-500/20', 'border-yellow-500/50');
+        sunArrowBtn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        sunArrowBtn.classList.remove('bg-yellow-500/20', 'border-yellow-500/50');
+        sunArrowBtn.classList.add('bg-white/5', 'border-white/10');
+    }
+    if (params.showSunLatitude) {
+        sunLatBtn.classList.add('bg-orange-500/20', 'border-orange-500/50');
+        sunLatBtn.classList.remove('bg-white/5', 'border-white/10');
+    } else {
+        sunLatBtn.classList.remove('bg-orange-500/20', 'border-orange-500/50');
+        sunLatBtn.classList.add('bg-white/5', 'border-white/10');
+    }
+}
+
+function toggleFlatMap() {
+    params.flatMapMode = !params.flatMapMode;
+    const overlay = document.getElementById('flatMapOverlay');
+    const btn = document.getElementById('toggleFlatMap');
+    const sunArrowBtn = document.getElementById('toggleSunArrow');
+    const sunLatBtn = document.getElementById('toggleSunLat');
+    if (params.flatMapMode) {
+        overlay.style.display = '';
+        btn.innerText = '🌍 返回3D地球';
+        btn.classList.add('bg-emerald-500/20', 'border-emerald-500/50');
+        sunArrowBtn.innerText = '☀ 直射点';
+        update2DButtonStates();
+        drawFlatMap();
+    } else {
+        overlay.style.display = 'none';
+        btn.innerText = '🗺 切换至平面地图';
+        btn.classList.remove('bg-emerald-500/20', 'border-emerald-500/50');
+        sunArrowBtn.innerText = '☀ 阳光箭头';
+        update3DButtonStates();
+        const mk = params.customMarker;
+        if (mk) {
+            const dLon = mk.displayLon !== undefined ? mk.displayLon : mk.lon;
+            removeCustomMarker();
+            document.getElementById('markerLon').value = Math.abs(dLon);
+            document.getElementById('markerLonDir').value = dLon >= 0 ? 'E' : 'W';
+            document.getElementById('markerLat').value = Math.abs(mk.lat);
+            document.getElementById('markerLatDir').value = mk.lat >= 0 ? 'N' : 'S';
+            document.getElementById('btnPlaceMarker').click();
+        }
+    }
+}
+
+function drawFlatMap() {
+    const canvas = document.getElementById('flatMapCanvas');
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.width = canvas.clientWidth * dpr;
+    const H = canvas.height = canvas.clientHeight * dpr;
+    const ctx = canvas.getContext('2d');
+
+    const lonToX = (lon) => ((lon + 180) / 360) * W;
+    const latToY = (lat) => ((90 - lat) / 180) * H;
+
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, W, H);
+
+    if (flatMapImg && flatMapImg.complete && flatMapImg.naturalWidth > 0) {
+        ctx.drawImage(flatMapImg, 0, 0, W, H);
+    }
+
+    const declination = calcDeclination(params.dayOfYear);
+    const declRad = THREE.MathUtils.degToRad(declination);
+    const midnightLonDeg = 90 - THREE.MathUtils.radToDeg(earth.rotation.y);
+    const midnightLon = ((midnightLonDeg % 360) + 540) % 360 - 180;
+    const noonLon = ((midnightLon + 180) % 360 + 360) % 360;
+    const noonLonRad = THREE.MathUtils.degToRad(noonLon);
+
+    if (params.showTimeZones) {
+        THEORETICAL_ZONES.forEach(zone => {
+            const x1 = Math.floor(lonToX(zone.center - zone.width / 2));
+            const x2 = Math.ceil(lonToX(zone.center + zone.width / 2));
+            const hex = getZoneColor(zone.offset).toString(16).padStart(6, '0');
+            ctx.fillStyle = '#' + hex;
+            ctx.globalAlpha = 0.35;
+            ctx.fillRect(x1, 0, x2 - x1, H);
+        });
+        ctx.globalAlpha = 1;
+
+        if (params.showTimeZoneLabels) {
+            THEORETICAL_ZONES.forEach(zone => {
+                const cx = lonToX(zone.center);
+                ctx.fillStyle = '#88ccff';
+                ctx.font = 'bold ' + Math.max(10, W / 180) + 'px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(formatUTCOffset(zone.offset), cx, latToY(0));
+            });
+        }
+    }
+
+    if (params.showNight) {
+        const nearEquinox = Math.abs(declination) < 3;
+
+        if (nearEquinox) {
+            const dayLeftX = lonToX(noonLon - 90);
+            const dayRightX = lonToX(noonLon + 90);
+
+            ctx.fillStyle = 'rgba(0,0,17,0.65)';
+            ctx.beginPath();
+            if (dayLeftX > 0) ctx.rect(0, 0, dayLeftX, H);
+            if (dayRightX < W) ctx.rect(dayRightX, 0, W - dayRightX, H);
+            if (dayLeftX < 0 && dayRightX > 0) ctx.rect(dayRightX, 0, W - dayRightX + dayLeftX + W, H);
+            ctx.fill();
+
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = Math.max(1.5, W / 600);
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.moveTo(dayLeftX, 0); ctx.lineTo(dayLeftX, H);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(dayRightX, 0); ctx.lineTo(dayRightX, H);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else {
+            const termPoints = [];
+            for (let px = 0; px <= W; px++) {
+                const lon = (px / W) * 360 - 180;
+                const lonRad = THREE.MathUtils.degToRad(lon);
+                const tanPhi = -Math.cos(lonRad - noonLonRad) / Math.tan(declRad);
+                let latRad = Math.atan(tanPhi);
+                let lat = THREE.MathUtils.radToDeg(latRad);
+                if (lat < -90) lat = -90;
+                if (lat > 90) lat = 90;
+                termPoints.push({ x: px, y: latToY(lat) });
+            }
+
+            ctx.fillStyle = 'rgba(0,0,17,0.65)';
+            ctx.beginPath();
+            if (declination > 0) {
+                ctx.moveTo(termPoints[0].x, termPoints[0].y);
+                for (let i = 1; i < termPoints.length; i++) {
+                    ctx.lineTo(termPoints[i].x, termPoints[i].y);
+                }
+                ctx.lineTo(W, H);
+                ctx.lineTo(0, H);
+            } else {
+                ctx.moveTo(termPoints[0].x, termPoints[0].y);
+                for (let i = 1; i < termPoints.length; i++) {
+                    ctx.lineTo(termPoints[i].x, termPoints[i].y);
+                }
+                ctx.lineTo(W, 0);
+                ctx.lineTo(0, 0);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = Math.max(1.5, W / 600);
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.moveTo(termPoints[0].x, termPoints[0].y);
+            for (let i = 1; i < termPoints.length; i++) {
+                ctx.lineTo(termPoints[i].x, termPoints[i].y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        if (params.showDayNightLabels) {
+            const subsolarLon = noonLon > 180 ? noonLon - 360 : noonLon;
+            const antipodalLon = subsolarLon >= 0 ? subsolarLon - 180 : subsolarLon + 180;
+
+            ctx.fillStyle = 'rgba(255,200,50,0.85)';
+            ctx.font = 'bold ' + Math.max(28, H / 8) + 'px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('昼', lonToX(subsolarLon), latToY(Math.min(80, Math.max(-80, declination))));
+
+            ctx.fillStyle = 'rgba(100,150,255,0.85)';
+            ctx.fillText('夜', lonToX(antipodalLon), latToY(Math.min(80, Math.max(-80, -declination))));
+        }
+    }
+
+    // International Date Line (180°)
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = Math.max(2, W / 360);
+    const dlX = lonToX(180);
+    ctx.beginPath();
+    ctx.moveTo(dlX, 0);
+    ctx.lineTo(dlX, H);
+    ctx.stroke();
+
+    // Prime Meridian (0°)
+    ctx.strokeStyle = '#ffffff';
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = Math.max(1, W / 720);
+    const pmX = lonToX(0);
+    ctx.beginPath();
+    ctx.moveTo(pmX, 0);
+    ctx.lineTo(pmX, H);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Midnight meridian (0时经线)
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = Math.max(2, W / 360);
+    ctx.setLineDash([6, 4]);
+    const mmX = lonToX(midnightLon);
+    ctx.beginPath();
+    ctx.moveTo(mmX, 0);
+    ctx.lineTo(mmX, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Date mark regions on equator
+    if (params.showDateMarks) {
+        const eqY = latToY(0);
+        const stripH = Math.max(18, H / 60);
+        const newDateLeft = lonToX(midnightLon);
+        const newDateRight = lonToX(180);
+        const newDateW = newDateRight - newDateLeft;
+
+        if (newDateW > 0) {
+            ctx.fillStyle = 'rgba(34,197,94,0.25)';
+            ctx.fillRect(newDateLeft, eqY - stripH / 2, newDateW, stripH);
+            ctx.fillStyle = 'rgba(59,130,246,0.25)';
+            ctx.fillRect(0, eqY - stripH / 2, newDateLeft, stripH);
+            ctx.fillRect(newDateRight, eqY - stripH / 2, W - newDateRight, stripH);
+        } else {
+            ctx.fillStyle = 'rgba(34,197,94,0.25)';
+            ctx.fillRect(0, eqY - stripH / 2, newDateRight, stripH);
+            ctx.fillRect(newDateLeft, eqY - stripH / 2, W - newDateLeft, stripH);
+            ctx.fillStyle = 'rgba(59,130,246,0.25)';
+            ctx.fillRect(newDateRight, eqY - stripH / 2, newDateLeft - newDateRight, stripH);
+        }
+
+        ctx.fillStyle = 'rgba(34,197,94,0.9)';
+        ctx.font = 'bold ' + Math.max(10, stripH * 0.7) + 'px Inter, sans-serif';
+        ctx.textBaseline = 'middle';
+
+        ctx.textAlign = 'left';
+        ctx.fillText('新日期(+1天)', mmX + 4, eqY);
+        ctx.textAlign = 'right';
+        ctx.fillText('旧日期', mmX - 4, eqY);
+
+        ctx.fillStyle = 'rgba(34,197,94,0.9)';
+        ctx.textAlign = 'right';
+        ctx.fillText('新日期(+1天)', lonToX(180) - 4, eqY);
+        ctx.fillStyle = 'rgba(100,149,237,0.9)';
+        ctx.textAlign = 'left';
+        ctx.fillText('旧日期', lonToX(-180) + 4, eqY);
+    }
+
+    if (params.customMarker) {
+        const dLon = params.customMarker.displayLon !== undefined ? params.customMarker.displayLon : params.customMarker.lon;
+        const mx = lonToX(dLon);
+        const my = latToY(params.customMarker.lat);
+
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.arc(mx, my, Math.max(6, W / 200), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = Math.max(2, W / 500);
+        ctx.beginPath();
+        ctx.arc(mx, my, Math.max(10, W / 120), 0, Math.PI * 2);
+        ctx.stroke();
+
+        const utcTotalHours = ((12 - noonLon / 15) % 24 + 24) % 24;
+        const localHours = ((utcTotalHours + dLon / 15) % 24 + 24) % 24;
+        const h = Math.floor(localHours);
+        const m = Math.floor((localHours - h) * 60);
+        const s = Math.floor(((localHours - h) * 60 - m) * 60);
+
+        ctx.fillStyle = '#ff4444';
+        const coordFont = Math.max(9, W / 130);
+        const timeFont = Math.max(11, W / 100);
+        ctx.textAlign = 'center';
+
+        const markerPlaceName = params.customMarker.placeName;
+        if (markerPlaceName && markerPlaceName.trim()) {
+            const nameFont = Math.max(11, W / 100);
+            const nameY = my - Math.max(40, W / 22);
+            ctx.font = 'bold ' + nameFont + 'px Inter, sans-serif';
+            ctx.fillText(markerPlaceName.trim(), mx, nameY);
+        }
+
+        const timeY = my - Math.max(16, W / 60);
+        ctx.font = 'bold ' + timeFont + 'px Inter, sans-serif';
+        ctx.fillText(
+            `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`,
+            mx, timeY
+        );
+        ctx.font = coordFont + 'px Inter, sans-serif';
+        ctx.fillText(
+            formatLon(dLon) + ' ' + formatLat(params.customMarker.lat),
+            mx, my - Math.max(30, W / 35)
+        );
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = Math.max(2, W / 500);
+        //ctx.globalAlpha = 0.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, my);
+        ctx.lineTo(W, my);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+    }
+
+    if (params.showSunLat2D) {
+        const latY = latToY(declination);
+        ctx.strokeStyle = '#ff8800';
+        ctx.lineWidth = Math.max(2, W / 360);
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(0, latY);
+        ctx.lineTo(W, latY);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ff8800';
+        ctx.font = 'bold ' + Math.max(12, W / 100) + 'px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(formatLat(declination), W * 0.01, latY);
+        ctx.textAlign = 'right';
+        ctx.fillText(formatLat(declination), W * 0.99, latY);
+    }
+
+    if (params.showSubsolar2D) {
+        const subsolarLon = noonLon > 180 ? noonLon - 360 : noonLon;
+        const sx = lonToX(subsolarLon);
+        const sy = latToY(declination);
+
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(6, W / 180), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = Math.max(2, W / 360);
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(12, W / 90), 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffcc00';
+        ctx.font = 'bold ' + Math.max(11, W / 110) + 'px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        const noonDisplayLon = noonLon > 180 ? 360 - noonLon : noonLon;
+        const noonDirChar = noonLon > 180 ? 'W' : 'E';
+        ctx.fillText(
+            '☀ ' + noonDisplayLon.toFixed(1) + '°' + noonDirChar + ', ' + formatLat(declination),
+            sx, sy - Math.max(18, W / 50)
+        );
+    }
+
+    // Status info bar
+    const utcTotalHours = ((12 - noonLon / 15) % 24 + 24) % 24;
+    const utcH = Math.floor(utcTotalHours);
+    const utcM = Math.floor((utcTotalHours - utcH) * 60);
+    document.getElementById('flatMapInfo').innerHTML =
+        '<span>UTC ' + String(utcH).padStart(2, '0') + ':' + String(utcM).padStart(2, '0') + '</span>' +
+        '<span>0时经线 ' + Math.round(midnightLon) + '°</span>' +
+        '<span>' + getDateString(params.dayOfYear) + '</span>' +
+        '<span style="color:#ef4444">◄ 日界线(180°)</span>' +
+        '<span style="color:#facc15">◄ 0时经线</span>';
+}
+
+function updateClocks() {
+    const midnightLonDeg = 90 - THREE.MathUtils.radToDeg(earth.rotation.y);
+    const noonLon = ((midnightLonDeg + 180) % 360 + 360) % 360;
+    const utcTotalHours = ((12 - noonLon / 15) % 24 + 24) % 24;
+    const utcH = Math.floor(utcTotalHours);
+    const utcM = Math.floor((utcTotalHours - utcH) * 60);
+    const utcS = Math.floor(((utcTotalHours - utcH) * 60 - utcM) * 60);
+
+    document.getElementById('utcClock').innerText =
+        `${String(utcH).padStart(2, '0')}:${String(utcM).padStart(2, '0')}:${String(utcS).padStart(2, '0')}`;
+
+    const bjTotalHours = ((utcTotalHours + 8) % 24 + 24) % 24;
+    const bjH = Math.floor(bjTotalHours);
+    const bjM = Math.floor((bjTotalHours - bjH) * 60);
+    const bjS = Math.floor(((bjTotalHours - bjH) * 60 - bjM) * 60);
+    document.getElementById('beijingClock').innerText =
+        `${String(bjH).padStart(2, '0')}:${String(bjM).padStart(2, '0')}:${String(bjS).padStart(2, '0')}`;
+
+    const dateLineWorldPos = new THREE.Vector3(-EARTH_RADIUS, 0, 0).applyMatrix4(earth.matrixWorld);
+    const isPastMidnight = dateLineWorldPos.x > 0;
+    const dateStr = getDateString(params.dayOfYear);
+    document.getElementById('dateLabel').innerText = isPastMidnight ? dateStr + ' (+1)' : dateStr;
+    document.getElementById('dateLabel').className = isPastMidnight
+        ? "text-[10px] px-2 py-1 rounded bg-green-900/50 text-green-300"
+        : "text-[10px] px-2 py-1 rounded bg-blue-900/50 text-blue-300";
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    if (!params.paused) {
+        const delta = 0.002 * params.rotationSpeed;
+        earth.rotation.y += delta;
+        if (cloud) cloud.rotation.y += delta * 1.1;
+
+        const midnightLonDeg = 90 - THREE.MathUtils.radToDeg(earth.rotation.y);
+        const noonLon = ((midnightLonDeg + 180) % 360 + 360) % 360;
+        const utcTotalHours = ((12 - noonLon / 15) % 24 + 24) % 24;
+        
+        if (_prevUtcHour !== null && _prevUtcHour > 20 && utcTotalHours < 4) {
+            advanceDay();
+        }
+        _prevUtcHour = utcTotalHours;
+    }
+
+    if (midnightLinePivot) {
+        const midnightLonDeg = 90 - THREE.MathUtils.radToDeg(earth.rotation.y);
+        const normalizedLon = ((midnightLonDeg % 360) + 540) % 360 - 180;
+        midnightLinePivot.rotation.y = THREE.MathUtils.degToRad(midnightLonDeg);
+        document.getElementById('midnightLonVal').innerText = Math.round(normalizedLon) + '°';
+        document.getElementById('midnightLon').value = Math.round(normalizedLon);
+
+        if (dateMarkPivot) {
+            dateMarkPivot.rotation.y = THREE.MathUtils.degToRad(midnightLonDeg);
+        }
+        if (params.showDateMarks) updateDateArrowLabels();
+        updateDateArrows();
+
+        if (midnightLonLabel && midnightLonLabel.material && midnightLonLabel.material.map) {
+            const lonText = '0时\n' + formatLon(Math.round(normalizedLon));
+            updateSpriteLabel(midnightLonLabel, lonText, 'rgba(255,221,0,0.9)');
+        }
+        if (midnightLonLabelN && midnightLonLabelN.material && midnightLonLabelN.material.map) {
+            updateSpriteLabel(midnightLonLabelN, formatLon(Math.round(normalizedLon)), 'rgba(255,221,0,0.9)');
+        }
+        if (midnightLonLabelS && midnightLonLabelS.material && midnightLonLabelS.material.map) {
+            updateSpriteLabel(midnightLonLabelS, formatLon(Math.round(normalizedLon)), 'rgba(255,221,0,0.9)');
+        }
+    }
+
+    controls.update();
+    updateSunArrow();
+    updateSubsolarMarker();
+    updateClocks();
+    updateCustomMarkerLabel();
+    renderer.render(scene, camera);
+
+    if (params.flatMapMode) {
+        drawFlatMap();
+    }
+}
+
+function makeDraggable(wrapperEl, handleEl) {
+    let dragging = false;
+    let startX, startY, startLeft, startTop;
+
+    function onStart(e) {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'LABEL') return;
+        dragging = true;
+        wrapperEl.classList.add('dragging');
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        startX = clientX;
+        startY = clientY;
+
+        const rect = wrapperEl.getBoundingClientRect();
+        startLeft = rect.left;
+        startTop = rect.top;
+
+        const canvas = document.querySelector('canvas');
+        if (canvas) canvas.style.pointerEvents = 'none';
+
+        e.preventDefault();
+    }
+
+    function onMove(e) {
+        if (!dragging) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+
+        wrapperEl.style.left = (startLeft + dx) + 'px';
+        wrapperEl.style.top = (startTop + dy) + 'px';
+        wrapperEl.style.right = 'auto';
+        wrapperEl.style.bottom = 'auto';
+        wrapperEl.style.transform = 'none';
+
+        e.preventDefault();
+    }
+
+    function onEnd() {
+        if (!dragging) return;
+        dragging = false;
+        wrapperEl.classList.remove('dragging');
+        const canvas = document.querySelector('canvas');
+        if (canvas) canvas.style.pointerEvents = '';
+    }
+
+    handleEl.addEventListener('mousedown', onStart);
+    handleEl.addEventListener('touchstart', onStart, { passive: false });
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchend', onEnd);
+}
+
+</script>
+</body>
+</html>
