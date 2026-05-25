@@ -447,18 +447,18 @@
           ctx.save();
           ctx.translate(x, y);
           if (faceType === 'bottom') {
-            // 底面需要反向旋转
             ctx.rotate(angleRad + Math.PI / 2);
             ctx.scale(1, -1);
           } else {
-            // 顶面正常旋转
             ctx.rotate(angleRad - Math.PI / 2);
           }
           ctx.fillStyle = '#3a2a18';
           ctx.font = 'bold 38px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          const hourNum = (i + 6) % 24 || 24;
+          const hourNum = faceType === 'bottom'
+            ? (((18 - i) % 24 + 24) % 24 || 24)
+            : ((i + 6) % 24 || 24);
           ctx.fillText(hourNum.toString(), 0, 0);
           ctx.restore();
         }
