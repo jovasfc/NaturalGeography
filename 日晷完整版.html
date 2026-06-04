@@ -142,6 +142,7 @@
       <button class="btn" id="btn-custom-point">📍 任意点</button>
       <button class="btn" id="btn-custom-grid">📐 经纬线</button>
       <button class="btn" id="btn-ground-shadow">🌑 地面挡光</button>
+      <button class="btn" id="btn-shadow-trace">📏 日影轨迹</button>
     </div>
     <div class="btn-row">
       <button class="btn" id="btn-auto-play">▶ 自动播放</button>
@@ -224,6 +225,7 @@
     const customLatVal = document.getElementById('custom-lat-val');
     const customLonVal = document.getElementById('custom-lon-val');
     const btnGroundShadow = document.getElementById('btn-ground-shadow');
+    const btnShadowTrace = document.getElementById('btn-shadow-trace');
     const btnOldPath = document.getElementById('btn-old-path');
     const btnNewPath = document.getElementById('btn-new-path');
     const btnTimeMarks = document.getElementById('btn-time-marks');
@@ -254,6 +256,7 @@
     let customPointLat = 0;
     let customPointLon = 0;
     let showGroundShadow = false;
+    let showShadowTrace = false;
     let showOldPath = true;
     let showNewPath = false;
     let showTimeMarks = false;
@@ -1133,6 +1136,10 @@
     poleLabelSprite.renderOrder = 998;
     poleGroup.add(poleLabelSprite);
 
+    // ---------- 日影轨迹组 ----------
+    const shadowTraceGroup = new THREE.Group();
+    scene.add(shadowTraceGroup);
+
     // ---------- 太阳可视化 ----------
     const sunVis = new THREE.Group();
     scene.add(sunVis);
@@ -1711,6 +1718,7 @@
       updateSunArrow();
       updateDeclinationLine();
       updateCustomPoint();
+      updateShadowTrace();
       if (latitude >= 0) {
         latSpan.textContent = latitude.toFixed(1)+'°N';
       } else {
@@ -2026,6 +2034,12 @@
       updateGroundShadow();
     });
 
+    btnShadowTrace.addEventListener('click', ()=>{
+      showShadowTrace=!showShadowTrace;
+      btnShadowTrace.classList.toggle('active', showShadowTrace);
+      updateShadowTrace();
+    });
+
     btnTimeMarks.addEventListener('click', ()=>{
       showTimeMarks=!showTimeMarks;
       btnTimeMarks.classList.toggle('active', showTimeMarks);
@@ -2057,6 +2071,91 @@
       updateVirtualGround();
     });
     
+    function updateShadowTrace() {
+      // 清空旧轨迹
+      while (shadowTraceGroup.children.length) {
+        const child = shadowTraceGroup.children[0];
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+        shadowTraceGroup.remove(child);
+      }
+
+      if (!showShadowTrace) return;
+
+      // 计算日出日落时角
+      const phi = latitude * Math.PI / 180;
+      const delta = declination * Math.PI / 180;
+      const cosH0 = -Math.tan(phi) * Math.tan(delta);
+      let Hmax = Math.PI;
+      if (cosH0 < -1) Hmax = Math.PI;
+      else if (cosH0 > 1) Hmax = 0;
+      else Hmax = Math.acos(cosH0);
+      Hmax = Math.min(Hmax, Math.PI * 0.98);
+
+      // 立杆顶端世界坐标（根据displayMode确定poleGroup位置）
+      const poleWorldX = (displayMode === 'pole') ? 0 : 5.5;
+      const poleTopY = 4.48;
+      const poleTop = new THREE.Vector3(poleWorldX, poleTopY, 0);
+      const groundY = 0;
+
+      const shadowPoints = [];
+
+      for (let i = 0; i <= 200; i++) {
+        const H = -Hmax + (2 * Hmax * i) / 200;
+        const sunData = getSunPosition(latitude, H * 180 / Math.PI, declination);
+        if (!sunData.above) continue;
+
+        const alt = sunData.altDeg * Math.PI / 180;
+        const azRad = sunData.azRad;
+
+        // 太阳方向向量（从地面指向太阳）
+        const sinAlt = Math.sin(alt);
+        if (sinAlt < 0.01) continue; // 太阳太低，跳过
+
+        // 影尖位置：从立杆顶端沿太阳反方向投影到地面
+        const shadowLen = poleTopY / sinAlt;
+        const shadowX = poleTop.x - Math.sin(azRad) * Math.cos(alt) * shadowLen;
+        const shadowZ = poleTop.z + Math.cos(azRad) * Math.cos(alt) * shadowLen;
+        shadowPoints.push(new THREE.Vector3(shadowX, groundY + 0.02, shadowZ));
+      }
+
+      if (shadowPoints.length > 1) {
+        const curve = new THREE.CatmullRomCurve3(shadowPoints);
+        const curvePoints = curve.getPoints(200);
+        const line = createFatLine(curvePoints, 0x3366ff, 0.8, false, 0.4, 0.4);
+        shadowTraceGroup.add(line);
+
+        // 在轨迹起点和终点添加标记球
+        const startSphere = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15, 16, 16),
+          new THREE.MeshStandardMaterial({ color: 0xff6644, emissive: 0x662200, emissiveIntensity: 0.5 })
+        );
+        startSphere.position.copy(shadowPoints[0]);
+        shadowTraceGroup.add(startSphere);
+
+        const endSphere = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15, 16, 16),
+          new THREE.MeshStandardMaterial({ color: 0xff6644, emissive: 0x662200, emissiveIntensity: 0.5 })
+        );
+        endSphere.position.copy(shadowPoints[shadowPoints.length - 1]);
+        shadowTraceGroup.add(endSphere);
+
+        // 在正午位置添加标记（最短影长点）
+        const noonIdx = Math.floor(shadowPoints.length / 2);
+        if (noonIdx > 0 && noonIdx < shadowPoints.length) {
+          const noonSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.18, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: 0x882200, emissiveIntensity: 0.6 })
+          );
+          noonSphere.position.copy(shadowPoints[noonIdx]);
+          shadowTraceGroup.add(noonSphere);
+        }
+      }
+    }
+
     function updateGroundShadow() {
       updateSunAndLight();
     }
