@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天球模型 - 地球与星座</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        body { margin: 0; overflow: hidden; background-color: #020617; font-family: 'Inter', sans-serif; color: white; }
+        canvas { display: block; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 1rem;
+        }
+        .btn-active {
+            background: rgba(59, 130, 246, 0.25) !important;
+            border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        .btn-green {
+            background: rgba(34, 197, 94, 0.25) !important;
+            border-color: rgba(34, 197, 94, 0.5) !important;
+        }
+        button { cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="absolute top-6 left-6 z-50 w-72 space-y-3 pointer-events-none">
+    <div class="glass-panel p-4 pointer-events-auto">
+        <h1 class="text-lg font-bold flex items-center gap-2 mb-2">
+            <span class="text-blue-400">🌐</span> 天球模型
+        </h1>
+        <p class="text-xs text-gray-400 mb-3 leading-relaxed">
+            中心为地球（地轴竖直），外层为天球，展示真实星座位置。
+        </p>
+
+        <section class="space-y-2">
+            <button id="btnMode" class="glass-panel py-2 text-sm bg-white/5 border-white/10 transition hover:bg-white/10 w-full">
+                🌍 地球自转（天球静止）
+            </button>
+
+            <div class="flex justify-between text-xs mb-1">
+                <span class="text-gray-400">旋转速度</span>
+                <span id="speedVal" class="text-blue-300 font-mono">2.0x</span>
+            </div>
+            <input type="range" id="rotationSpeed" min="0" max="30" step="0.5" value="2" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+
+            <div class="flex justify-between text-xs mb-1">
+                <span class="text-gray-400">地球半径</span>
+                <span id="earthRadiusVal" class="text-green-300 font-mono">8.0</span>
+            </div>
+            <input type="range" id="earthRadius" min="0.1" max="18" step="0.5" value="8" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="btnStars" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition btn-active">⭐ 星座连线 ✓</button>
+                <button id="btnGrid" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition btn-active">📐 天球网格 ✓</button>
+            </section>
+
+            <button id="btnLabels" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full btn-active">🏷 星座名称 ✓</button>
+
+            <div class="border-t border-white/10 pt-2 mt-2">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-gray-400">太阳赤纬</span>
+                    <span id="sunDecVal" class="text-orange-300 font-mono">+23.4°</span>
+                </div>
+                <input type="range" id="sunDeclination" min="-23.44" max="23.44" step="0.1" value="23.44" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                    <button id="btnSunDecLine" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">☀ 赤纬纬线</button>
+                    <button id="btnAddSun" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">➕ 添加太阳</button>
+                </div>
+                <button id="btnRemoveSun" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full mt-1">✕ 移除最近太阳</button>
+            </div>
+
+            <div class="border-t border-white/10 pt-2 mt-2">
+                <div class="flex items-center gap-1 mb-2">
+                    <span class="text-[10px] text-gray-400">点击地球表面放置标记</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btnPlaceMarker" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition btn-green">📍 点击放置</button>
+                    <button id="btnGroundPlane" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">📏 显示地平面</button>
+                </div>
+                <button id="btnClearMarkers" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full mt-1">✕ 清除所有标记</button>
+            </div>
+
+            <div class="border-t border-white/10 pt-2 mt-2">
+                <div class="text-[10px] text-gray-400 mb-1.5">地球表面显示</div>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="btnSubsolarPoint" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition btn-active">📍 直射点 ✓</button>
+                    <button id="btnEquatorOnEarth" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">⚪ 赤道</button>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 mt-1">
+                    <button id="btnTropicsOnEarth" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">🔴 回归线</button>
+                    <button id="btnPolarCirclesOnEarth" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition">🔵 极圈</button>
+                </div>
+                <button id="btnTerminator" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition w-full mt-1">🌓 晨昏圈</button>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+const CELESTIAL_RADIUS = 22;
+
+const TEXTURES = {
+    day: 'img/2_no_clouds_4k.jpg',
+    clouds: 'img/fair_clouds_4k.png'
+};
+
+const CONSTELLATIONS = [
+    {
+        name: "大熊座", color: 0x60a5fa,
+        stars: [
+            { ra: 11.06, dec: 61.75 }, { ra: 11.03, dec: 56.38 },
+            { ra: 11.89, dec: 53.69 }, { ra: 12.25, dec: 57.03 },
+            { ra: 12.90, dec: 55.96 }, { ra: 13.40, dec: 54.92 },
+            { ra: 13.79, dec: 49.31 }
+        ],
+        connections: [[0,1],[1,2],[2,3],[3,0],[3,4],[4,5],[5,6]]
+    },
+    { name: "小熊座", color: 0xaaccff, stars: [{ ra: 2.53, dec: 89.26 }, { ra: 16.76, dec: 82.04 }, { ra: 15.73, dec: 77.79 }, { ra: 14.85, dec: 74.16 }], connections: [[0,1],[1,2],[2,3],[3,0]] },
+    { name: "猎户座", color: 0xf472b6, stars: [{ ra: 5.92, dec: 7.41 }, { ra: 5.25, dec: -8.20 }, { ra: 5.42, dec: 6.35 }, { ra: 5.59, dec: -1.20 }, { ra: 5.68, dec: -1.94 }, { ra: 5.53, dec: -0.30 }, { ra: 5.79, dec: -9.67 }], connections: [[0,4],[2,5],[4,3],[3,5],[4,6],[5,1],[1,6]] },
+    { name: "仙后座", color: 0x34d399, stars: [{ ra: 0.15, dec: 59.15 }, { ra: 0.67, dec: 56.54 }, { ra: 0.95, dec: 60.72 }, { ra: 1.43, dec: 63.85 }, { ra: 1.90, dec: 63.67 }], connections: [[0,1],[1,2],[2,3],[3,4]] },
+    { name: "天蝎座", color: 0xfca5a5, stars: [{ ra: 16.01, dec: -22.62 }, { ra: 16.08, dec: -26.10 }, { ra: 16.49, dec: -26.43 }, { ra: 16.84, dec: -34.29 }, { ra: 17.20, dec: -38.30 }, { ra: 17.55, dec: -37.30 }, { ra: 17.62, dec: -43.00 }], connections: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]] },
+    { name: "天琴座", color: 0xccddff, stars: [{ ra: 18.62, dec: 38.78 }, { ra: 18.83, dec: 33.36 }, { ra: 18.75, dec: 37.61 }], connections: [[0,1],[0,2],[1,2]] },
+    { name: "天鹰座", color: 0xddccff, stars: [{ ra: 19.85, dec: 8.87 }, { ra: 19.78, dec: 10.61 }, { ra: 19.09, dec: 13.86 }], connections: [[0,1],[0,2]] },
+    { name: "天鹅座", color: 0xccddff, stars: [{ ra: 20.69, dec: 45.28 }, { ra: 19.51, dec: 27.96 }, { ra: 20.37, dec: 40.26 }, { ra: 20.77, dec: 33.97 }, { ra: 21.12, dec: 30.23 }], connections: [[0,2],[1,2],[2,3],[2,4]] },
+    { name: "狮子座", color: 0xffddaa, stars: [{ ra: 10.14, dec: 11.97 }, { ra: 11.82, dec: 14.57 }, { ra: 9.53, dec: 22.97 }, { ra: 10.33, dec: 19.84 }], connections: [[0,1],[0,2],[1,3],[2,3]] },
+    { name: "室女座", color: 0xaaffaa, stars: [{ ra: 13.42, dec: -11.16 }, { ra: 12.70, dec: -1.45 }, { ra: 13.04, dec: 10.96 }], connections: [[0,1],[0,2]] },
+    { name: "牧夫座", color: 0xffcc88, stars: [{ ra: 14.26, dec: 19.18 }, { ra: 13.83, dec: 49.31 }, { ra: 14.54, dec: 30.37 }, { ra: 15.26, dec: 33.31 }], connections: [[0,1],[0,2],[0,3]] },
+    { name: "双子座", color: 0xddccff, stars: [{ ra: 7.58, dec: 31.89 }, { ra: 7.76, dec: 28.03 }, { ra: 6.95, dec: 20.57 }, { ra: 7.07, dec: 22.51 }], connections: [[0,1],[0,2],[1,3]] },
+    { name: "金牛座", color: 0xffcc88, stars: [{ ra: 4.60, dec: 16.51 }, { ra: 5.44, dec: 28.61 }, { ra: 3.82, dec: 24.11 }, { ra: 4.47, dec: 15.87 }, { ra: 4.37, dec: 19.18 }], connections: [[0,1],[0,3],[0,4],[3,4]] },
+    { name: "大犬座", color: 0xaaccff, stars: [{ ra: 6.75, dec: -16.72 }, { ra: 6.98, dec: -28.97 }, { ra: 7.14, dec: -26.39 }, { ra: 6.38, dec: -17.95 }], connections: [[0,1],[0,2],[0,3]] },
+    { name: "小犬座", color: 0xccddff, stars: [{ ra: 7.66, dec: 5.22 }, { ra: 7.45, dec: 3.23 }], connections: [[0,1]] },
+    { name: "仙王座", color: 0x88ccff, stars: [{ ra: 21.48, dec: 70.56 }, { ra: 22.18, dec: 58.24 }, { ra: 21.31, dec: 62.59 }, { ra: 22.49, dec: 66.20 }], connections: [[0,1],[0,2],[1,3],[2,3]] },
+    { name: "御夫座", color: 0xffffcc, stars: [{ ra: 5.28, dec: 46.00 }, { ra: 5.99, dec: 44.95 }, { ra: 5.45, dec: 28.61 }, { ra: 5.24, dec: 31.88 }], connections: [[0,1],[0,2],[1,3],[2,3]] },
+    { name: "仙女座", color: 0xddddff, stars: [{ ra: 0.14, dec: 29.09 }, { ra: 0.95, dec: 38.50 }, { ra: 0.86, dec: 42.33 }, { ra: 1.17, dec: 35.62 }], connections: [[0,1],[1,2],[0,3],[2,3]] }
+];
+
+let scene, camera, renderer, controls;
+const FRUSTUM_SIZE = 60;
+let earth, earthCloud, earthGlobe, celestialGroup;
+let sunLight, nightShaderMesh;
+let constellationLinesGroup, constellationLabelsGroup, celestialGridGroup;
+let sunMarkers = [];
+let earthMarkers = [];
+let earthPointersGroup, groundPlanesGroup;
+let earthFeaturesGroup;
+let subsolarMarker, terminatorRing;
+let earthLatLines = {};
+let raycaster, mouse;
+let modeEarthRotate = true;
+let clickingEnabled = false;
+
+let params = {
+    speed: 2,
+    earthRadius: 8,
+    showStars: true,
+    showGrid: true,
+    showLabels: true,
+    sunDeclination: 23.44,
+    showSunDecLine: false,
+    showGroundPlane: false,
+    showSubsolarPoint: true,
+    showEquatorOnEarth: false,
+    showTropicsOnEarth: false,
+    showPolarCirclesOnEarth: false,
+    showTerminator: false
+};
+
+function raDecToPosition(raHours, decDeg, radius) {
+    const theta = (90 - decDeg) * (Math.PI / 180);
+    const phi = raHours * Math.PI / 12;
+    return new THREE.Vector3(
+        radius * Math.sin(theta) * Math.cos(phi),
+        radius * Math.cos(theta),
+        radius * Math.sin(theta) * Math.sin(phi)
+    );
+}
+
+function init() {
+    scene = new THREE.Scene();
+    const aspect = window.innerWidth / window.innerHeight;
+    camera = new THREE.OrthographicCamera(
+        -FRUSTUM_SIZE * aspect / 2,
+        FRUSTUM_SIZE * aspect / 2,
+        FRUSTUM_SIZE / 2,
+        -FRUSTUM_SIZE / 2,
+        0.1,
+        500
+    );
+    camera.position.set(35, 20, 40);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 15;
+    controls.maxDistance = 120;
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    createEarth();
+    createCelestialSphere();
+    addSun(23.44);
+    createConstellations();
+    createCelestialGrid();
+    setupEvents();
+    animate();
+}
+
+function createEarth() {
+    const savedPointersGroup = earthPointersGroup;
+    const savedGroundGroup = groundPlanesGroup;
+    const savedFeaturesGroup = earthFeaturesGroup;
+
+    if (earth) {
+        if (savedPointersGroup) earth.remove(savedPointersGroup);
+        if (savedGroundGroup) earth.remove(savedGroundGroup);
+        if (savedFeaturesGroup) earth.remove(savedFeaturesGroup);
+        scene.remove(earth);
+        disposeGroup(earth);
+    }
+
+    if (terminatorRing) {
+        terminatorRing.geometry.dispose();
+        terminatorRing.material.dispose();
+        scene.remove(terminatorRing);
+        terminatorRing = null;
+    }
+
+    const R = params.earthRadius;
+    const loader = new THREE.TextureLoader();
+
+    earth = new THREE.Group();
+    scene.add(earth);
+
+    const geo = new THREE.SphereGeometry(R, 64, 64);
+    const mat = new THREE.MeshPhongMaterial({
+        map: loader.load(TEXTURES.day),
+        bumpMap: loader.load(TEXTURES.day),
+        bumpScale: 0.05,
+        specular: new THREE.Color('grey'),
+        shininess: 5
+    });
+    earthGlobe = new THREE.Mesh(geo, mat);
+    earthGlobe.name = 'earthGlobe';
+    earth.add(earthGlobe);
+
+    const cloudGeo = new THREE.SphereGeometry(R + 0.08, 64, 64);
+    const cloudMat = new THREE.MeshPhongMaterial({
+        map: loader.load(TEXTURES.clouds),
+        transparent: true,
+        opacity: 0.35
+    });
+    earthCloud = new THREE.Mesh(cloudGeo, cloudMat);
+    earth.add(earthCloud);
+
+    const ambient = new THREE.AmbientLight(0x303050, 0.3);
+    scene.add(ambient);
+
+    sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    scene.add(sunLight);
+
+    createNightShader();
+
+    const axisLen = R + 2;
+    const axisGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -axisLen, 0), new THREE.Vector3(0, axisLen, 0)
+    ]);
+    const axisMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+    const axisLine = new THREE.Line(axisGeo, axisMat);
+    earth.add(axisLine);
+
+    if (savedPointersGroup) {
+        earthPointersGroup = new THREE.Group();
+        earth.add(earthPointersGroup);
+    }
+    if (savedGroundGroup) {
+        groundPlanesGroup = new THREE.Group();
+        earth.add(groundPlanesGroup);
+    }
+    if (savedFeaturesGroup) {
+        earthFeaturesGroup = new THREE.Group();
+        earth.add(earthFeaturesGroup);
+    }
+
+    if (!savedFeaturesGroup) {
+        earthFeaturesGroup = new THREE.Group();
+        earth.add(earthFeaturesGroup);
+    }
+    createEarthFeatures();
+
+    createTerminatorRing();
+
+    rebuildAllMarkersFromDirections();
+}
+
+function createNightShader() {
+    if (nightShaderMesh) {
+        nightShaderMesh.geometry.dispose();
+        nightShaderMesh.material.dispose();
+        scene.remove(nightShaderMesh);
+    }
+    const R = params.earthRadius + 0.06;
+    const geo = new THREE.SphereGeometry(R, 64, 64);
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {
+            sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+        },
+        vertexShader: `
+            varying vec3 vViewNormal;
+            void main() {
+                vViewNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vViewNormal;
+            uniform vec3 sunDirection;
+            void main() {
+                vec3 normal = normalize(vViewNormal);
+                vec3 sunDir = normalize(sunDirection);
+                float dotProduct = dot(normal, sunDir);
+                float night = smoothstep(0.0, -0.2, dotProduct);
+                gl_FragColor = vec4(0.05, 0.05, 0.15, night * 0.75);
+            }
+        `,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+    });
+    nightShaderMesh = new THREE.Mesh(geo, mat);
+    scene.add(nightShaderMesh);
+}
+
+function updateNightShader() {
+    if (!nightShaderMesh || sunMarkers.length === 0) return;
+    const sunWorldPos = new THREE.Vector3();
+    sunMarkers[0].group.getWorldPosition(sunWorldPos);
+    const sunDir = sunWorldPos.clone().normalize();
+    sunDir.transformDirection(camera.matrixWorldInverse);
+    nightShaderMesh.material.uniforms.sunDirection.value.copy(sunDir);
+}
+
+function createEarthLatLine(latDeg, color) {
+    const R = params.earthRadius + 0.15;
+    const latRad = latDeg * Math.PI / 180;
+    const r = R * Math.cos(latRad);
+    const y = R * Math.sin(latRad);
+    const geo = new THREE.TorusGeometry(r, 0.05, 4, 180);
+    const mat = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.7, depthTest: true, depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = y;
+    mesh.rotation.x = Math.PI / 2;
+    mesh.renderOrder = 1;
+    return mesh;
+}
+
+function createEarthFeatures() {
+    if (!earthFeaturesGroup) {
+        earthFeaturesGroup = new THREE.Group();
+        earth.add(earthFeaturesGroup);
+    }
+    while (earthFeaturesGroup.children.length > 0) {
+        const c = earthFeaturesGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        earthFeaturesGroup.remove(c);
+    }
+
+    earthLatLines.equator = createEarthLatLine(0, 0xffaa00);
+    earthLatLines.equator.visible = params.showEquatorOnEarth;
+    earthFeaturesGroup.add(earthLatLines.equator);
+
+    earthLatLines.tropicCancer = createEarthLatLine(23.44, 0xff6644);
+    earthLatLines.tropicCancer.visible = params.showTropicsOnEarth;
+    earthFeaturesGroup.add(earthLatLines.tropicCancer);
+
+    earthLatLines.tropicCapricorn = createEarthLatLine(-23.44, 0xff6644);
+    earthLatLines.tropicCapricorn.visible = params.showTropicsOnEarth;
+    earthFeaturesGroup.add(earthLatLines.tropicCapricorn);
+
+    earthLatLines.arcticCircle = createEarthLatLine(66.56, 0x44aaff);
+    earthLatLines.arcticCircle.visible = params.showPolarCirclesOnEarth;
+    earthFeaturesGroup.add(earthLatLines.arcticCircle);
+
+    earthLatLines.antarcticCircle = createEarthLatLine(-66.56, 0x44aaff);
+    earthLatLines.antarcticCircle.visible = params.showPolarCirclesOnEarth;
+    earthFeaturesGroup.add(earthLatLines.antarcticCircle);
+
+    const R = params.earthRadius;
+    const sunDir = raDecToPosition(6.0, params.sunDeclination, 1).normalize();
+    const subPos = sunDir.clone().multiplyScalar(R * 1.01);
+
+    const subGeo = new THREE.SphereGeometry(0.2, 8, 8);
+    const subMat = new THREE.MeshBasicMaterial({ color: 0xff3333, depthTest: true });
+    subsolarMarker = new THREE.Mesh(subGeo, subMat);
+    subsolarMarker.position.copy(subPos);
+    subsolarMarker.visible = params.showSubsolarPoint;
+    earthFeaturesGroup.add(subsolarMarker);
+}
+
+function updateSubsolarPoint() {
+    if (!subsolarMarker) return;
+    const R = params.earthRadius;
+    const sunDir = raDecToPosition(6.0, params.sunDeclination, 1).normalize();
+    subsolarMarker.position.copy(sunDir.multiplyScalar(R * 1.01));
+}
+
+function createTerminatorRing() {
+    const R = params.earthRadius + 0.1;
+    const geo = new THREE.TorusGeometry(R, 0.06, 8, 120);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false });
+    terminatorRing = new THREE.Mesh(geo, mat);
+    terminatorRing.visible = params.showTerminator && sunMarkers.length === 1;
+    scene.add(terminatorRing);
+}
+
+function updateTerminatorInScene() {
+    if (!terminatorRing || !terminatorRing.visible) return;
+    if (sunMarkers.length === 0) return;
+    const sunWorldPos = new THREE.Vector3();
+    sunMarkers[0].group.getWorldPosition(sunWorldPos);
+    const sunDir = sunWorldPos.clone().normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 0, 1), sunDir
+    );
+    terminatorRing.quaternion.copy(quat);
+}
+
+function disposeGroup(group) {
+    group.traverse(c => {
+        if (c.geometry && c.geometry !== earthGlobe.geometry) c.geometry.dispose();
+        if (c.material) {
+            if (Array.isArray(c.material)) {
+                c.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+            } else {
+                if (c.material.map) c.material.map.dispose();
+                c.material.dispose();
+            }
+        }
+    });
+}
+
+function createCelestialSphere() {
+    celestialGroup = new THREE.Group();
+    scene.add(celestialGroup);
+
+    const sphereGeo = new THREE.SphereGeometry(CELESTIAL_RADIUS - 0.01, 80, 80);
+    const sphereMat = new THREE.MeshBasicMaterial({
+        color: 0x0a1030, transparent: true, opacity: 0.15, side: THREE.BackSide, depthWrite: false
+    });
+    celestialGroup.add(new THREE.Mesh(sphereGeo, sphereMat));
+
+    const starsGeo = new THREE.BufferGeometry();
+    const starCount = 600;
+    const positions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+        const theta = Math.acos(2 * Math.random() - 1);
+        const phi = Math.random() * 2 * Math.PI;
+        const r = CELESTIAL_RADIUS + (Math.random() - 0.5) * 0.2;
+        positions[i * 3] = r * Math.sin(theta) * Math.cos(phi);
+        positions[i * 3 + 1] = r * Math.cos(theta);
+        positions[i * 3 + 2] = r * Math.sin(theta) * Math.sin(phi);
+    }
+    starsGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const starsMat = new THREE.PointsMaterial({
+        color: 0x8899cc, size: 0.08, sizeAttenuation: true,
+        blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.7
+    });
+    const bgStars = new THREE.Points(starsGeo, starsMat);
+    bgStars.renderOrder = 500;
+    celestialGroup.add(bgStars);
+}
+
+function createSunGroup(declination) {
+    const group = new THREE.Group();
+    celestialGroup.add(group);
+
+    const pos = raDecToPosition(6.0, declination, CELESTIAL_RADIUS);
+    group.position.copy(pos);
+
+    const glowGeo = new THREE.SphereGeometry(0.7, 32, 32);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+    group.add(new THREE.Mesh(glowGeo, glowMat));
+
+    const outerGlowGeo = new THREE.SphereGeometry(1.0, 32, 32);
+    const outerGlowMat = new THREE.MeshBasicMaterial({
+        color: 0xffaa00, transparent: true, opacity: 0.25, depthWrite: false
+    });
+    group.add(new THREE.Mesh(outerGlowGeo, outerGlowMat));
+
+    const decStr = declination >= 0 ? '+' + declination.toFixed(1) + '°' : declination.toFixed(1) + '°';
+    const label = makeLabelSprite('☀ ' + decStr, '#ffdd44');
+    label.position.set(0, 1.5, 0);
+    label.scale.set(2.8, 1.1, 1);
+    group.add(label);
+
+    return group;
+}
+
+function createSunDecLine(declination) {
+    const decRad = declination * Math.PI / 180;
+    const r = CELESTIAL_RADIUS * Math.cos(decRad);
+    const y = CELESTIAL_RADIUS * Math.sin(decRad);
+    const geo = new THREE.TorusGeometry(r, 0.08, 8, 180);
+    const mat = new THREE.MeshBasicMaterial({
+        color: 0xffc107, transparent: true, opacity: 0.7, depthTest: true, depthWrite: false
+    });
+    const line = new THREE.Mesh(geo, mat);
+    line.position.y = y;
+    line.rotation.x = Math.PI / 2;
+    line.renderOrder = 492;
+    line.visible = params.showSunDecLine;
+    celestialGroup.add(line);
+    return line;
+}
+
+function addSun(declination) {
+    const group = createSunGroup(declination);
+    const decLine = createSunDecLine(declination);
+    sunMarkers.push({ group, decLine, declination });
+    if (sunMarkers.length > 1 && terminatorRing) {
+        terminatorRing.visible = false;
+        params.showTerminator = false;
+        const btn = document.getElementById('btnTerminator');
+        btn.classList.remove('btn-active');
+        btn.innerText = '🌓 晨昏圈';
+    }
+}
+
+function removeLastSun() {
+    if (sunMarkers.length <= 1) return;
+    const entry = sunMarkers.pop();
+    disposeGroup(entry.group);
+    celestialGroup.remove(entry.group);
+    if (entry.decLine) {
+        entry.decLine.geometry.dispose();
+        entry.decLine.material.dispose();
+        celestialGroup.remove(entry.decLine);
+    }
+    if (sunMarkers.length === 1 && terminatorRing && params.showTerminator) {
+        terminatorRing.visible = true;
+    }
+}
+
+function updateMainSunPosition() {
+    if (sunMarkers.length === 0) return;
+    const main = sunMarkers[0];
+    const pos = raDecToPosition(6.0, params.sunDeclination, CELESTIAL_RADIUS);
+    main.group.position.copy(pos);
+    main.declination = params.sunDeclination;
+
+    updateSubsolarPoint();
+
+    while (main.group.children.length > 0) {
+        const c = main.group.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+            if (c.material.map) c.material.map.dispose();
+            c.material.dispose();
+        }
+        main.group.remove(c);
+    }
+
+    const glowGeo = new THREE.SphereGeometry(0.7, 32, 32);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+    main.group.add(new THREE.Mesh(glowGeo, glowMat));
+
+    const outerGlowGeo = new THREE.SphereGeometry(1.0, 32, 32);
+    const outerGlowMat = new THREE.MeshBasicMaterial({
+        color: 0xffaa00, transparent: true, opacity: 0.25, depthWrite: false
+    });
+    main.group.add(new THREE.Mesh(outerGlowGeo, outerGlowMat));
+
+    const decStr = params.sunDeclination >= 0 ? '+' + params.sunDeclination.toFixed(1) + '°' : params.sunDeclination.toFixed(1) + '°';
+    const label = makeLabelSprite('☀ ' + decStr, '#ffdd44');
+    label.position.set(0, 1.5, 0);
+    label.scale.set(2.8, 1.1, 1);
+    main.group.add(label);
+
+    updateMainSunDecLine();
+}
+
+function updateMainSunDecLine() {
+    if (sunMarkers.length === 0) return;
+    const main = sunMarkers[0];
+    if (main.decLine) {
+        main.decLine.geometry.dispose();
+        main.decLine.material.dispose();
+        celestialGroup.remove(main.decLine);
+        main.decLine = null;
+    }
+
+    if (!params.showSunDecLine) return;
+
+    main.decLine = createSunDecLine(params.sunDeclination);
+    main.decLine.visible = true;
+}
+
+function updateAllSunDecLines() {
+    sunMarkers.forEach(entry => {
+        if (entry.decLine) entry.decLine.visible = params.showSunDecLine;
+    });
+}
+
+function makeLabelSprite(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.font = 'bold 24px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.renderOrder = 999;
+    return sprite;
+}
+
+function createConstellations() {
+    constellationLinesGroup = new THREE.Group();
+    celestialGroup.add(constellationLinesGroup);
+
+    constellationLabelsGroup = new THREE.Group();
+    celestialGroup.add(constellationLabelsGroup);
+
+    CONSTELLATIONS.forEach(con => {
+        const starPositions = con.stars.map(s =>
+            raDecToPosition(s.ra, s.dec, CELESTIAL_RADIUS)
+        );
+
+        starPositions.forEach(pos => {
+            const dotGeo = new THREE.SphereGeometry(0.12, 8, 8);
+            const dotMat = new THREE.MeshBasicMaterial({
+                color: con.color, depthTest: true, depthWrite: false
+            });
+            const dot = new THREE.Mesh(dotGeo, dotMat);
+            dot.position.copy(pos);
+            dot.renderOrder = 502;
+            constellationLinesGroup.add(dot);
+        });
+
+        con.connections.forEach(([a, b]) => {
+            const pts = [starPositions[a], starPositions[b]];
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({
+                color: con.color, transparent: true, opacity: 0.6, depthTest: true, depthWrite: false
+            });
+            const line = new THREE.Line(geo, mat);
+            line.renderOrder = 501;
+            constellationLinesGroup.add(line);
+        });
+
+        const center = new THREE.Vector3();
+        starPositions.forEach(p => center.add(p));
+        center.divideScalar(starPositions.length);
+        center.normalize().multiplyScalar(CELESTIAL_RADIUS + 0.8);
+
+        const label = makeLabelSprite(con.name, '#' + con.color.toString(16).padStart(6, '0'));
+        label.position.copy(center);
+        label.scale.set(2.5, 0.9, 1);
+        constellationLabelsGroup.add(label);
+    });
+}
+
+function createCelestialGrid() {
+    celestialGridGroup = new THREE.Group();
+    celestialGroup.add(celestialGridGroup);
+
+    const gridMat = new THREE.LineBasicMaterial({
+        color: 0x335577, transparent: true, opacity: 0.35, depthTest: true, depthWrite: false
+    });
+
+    for (let dec = -75; dec <= 75; dec += 15) {
+        const decRad = dec * Math.PI / 180;
+        const r = CELESTIAL_RADIUS * Math.cos(decRad);
+        const y = CELESTIAL_RADIUS * Math.sin(decRad);
+        const curve = new THREE.EllipseCurve(0, 0, r, r, 0, 2 * Math.PI);
+        const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(120));
+        const line = new THREE.Line(geo, gridMat);
+        line.position.y = y;
+        line.rotation.x = Math.PI / 2;
+        line.renderOrder = 490;
+        celestialGridGroup.add(line);
+    }
+
+    for (let ra = 0; ra < 24; ra += 2) {
+        const phi = ra * Math.PI / 12;
+        const pts = [];
+        for (let i = 0; i <= 80; i++) {
+            const theta = i * Math.PI / 80;
+            pts.push(new THREE.Vector3(
+                CELESTIAL_RADIUS * Math.sin(theta) * Math.cos(phi),
+                CELESTIAL_RADIUS * Math.cos(theta),
+                CELESTIAL_RADIUS * Math.sin(theta) * Math.sin(phi)
+            ));
+        }
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const line = new THREE.Line(geo, gridMat);
+        line.renderOrder = 490;
+        celestialGridGroup.add(line);
+    }
+
+    const eqR = CELESTIAL_RADIUS;
+    const eqCurve = new THREE.EllipseCurve(0, 0, eqR, eqR, 0, 2 * Math.PI);
+    const eqGeo = new THREE.BufferGeometry().setFromPoints(eqCurve.getPoints(120));
+    const eqLine = new THREE.Line(eqGeo, new THREE.LineBasicMaterial({
+        color: 0x4488cc, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false
+    }));
+    eqLine.rotation.x = Math.PI / 2;
+    eqLine.renderOrder = 491;
+    celestialGridGroup.add(eqLine);
+}
+
+function placeEarthMarker(intersectPoint) {
+    if (!earth) return;
+
+    if (!earthPointersGroup) {
+        earthPointersGroup = new THREE.Group();
+        earth.add(earthPointersGroup);
+    }
+    if (!groundPlanesGroup) {
+        groundPlanesGroup = new THREE.Group();
+        earth.add(groundPlanesGroup);
+    }
+
+    const localPoint = earth.worldToLocal(intersectPoint.clone());
+    const direction = localPoint.clone().normalize();
+    const R = params.earthRadius;
+    const surfacePoint = direction.clone().multiplyScalar(R);
+
+    const dotGeo = new THREE.SphereGeometry(0.2, 12, 12);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, depthTest: true });
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    dot.position.copy(surfacePoint);
+    earthPointersGroup.add(dot);
+
+    const ringGeo = new THREE.TorusGeometry(0.35, 0.05, 8, 16);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, depthTest: true, depthWrite: false });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.copy(surfacePoint);
+    ring.lookAt(surfacePoint.clone().add(direction));
+    earthPointersGroup.add(ring);
+
+    const groundDisc = createGroundPlane(surfacePoint, direction);
+    groundDisc.visible = params.showGroundPlane;
+    groundPlanesGroup.add(groundDisc);
+
+    earthMarkers.push({
+        direction: direction.clone(),
+        dot, ring, groundDisc
+    });
+}
+
+function createGroundPlane(surfacePoint, direction) {
+    const R = params.earthRadius;
+    const discR = CELESTIAL_RADIUS + 0.1 - R;
+    const discGeo = new THREE.CircleGeometry(discR, 64);
+    const discMat = new THREE.MeshBasicMaterial({
+        color: 0x44aaff,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false
+    });
+    const disc = new THREE.Mesh(discGeo, discMat);
+    disc.position.copy(surfacePoint);
+
+    const up = new THREE.Vector3(0, 0, 1);
+    const quat = new THREE.Quaternion().setFromUnitVectors(up, direction.clone().normalize());
+    disc.setRotationFromQuaternion(quat);
+
+    const stickLen = R * 0.2;
+    const stickGeo = new THREE.CylinderGeometry(0.04, 0.04, stickLen, 8);
+    const stickMat = new THREE.MeshBasicMaterial({ color: 0xaaddff, depthTest: true });
+    const stick = new THREE.Mesh(stickGeo, stickMat);
+    const stickMid = surfacePoint.clone().add(direction.clone().multiplyScalar(stickLen / 2));
+    stick.position.copy(stickMid);
+    stick.setRotationFromQuaternion(quat);
+    disc.add(stick);
+
+    return disc;
+}
+
+function rebuildAllMarkersFromDirections() {
+    if (!earthMarkers.length) return;
+
+    const R = params.earthRadius;
+    const savedMarkers = earthMarkers.slice();
+    earthMarkers = [];
+
+    if (earthPointersGroup) {
+        disposeGroup(earthPointersGroup);
+        earth.remove(earthPointersGroup);
+        earthPointersGroup = new THREE.Group();
+        earth.add(earthPointersGroup);
+    }
+    if (groundPlanesGroup) {
+        disposeGroup(groundPlanesGroup);
+        earth.remove(groundPlanesGroup);
+        groundPlanesGroup = new THREE.Group();
+        earth.add(groundPlanesGroup);
+    }
+
+    savedMarkers.forEach(m => {
+        const surfacePoint = m.direction.clone().multiplyScalar(R);
+
+        const dotGeo = new THREE.SphereGeometry(0.2, 12, 12);
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, depthTest: true });
+        const dot = new THREE.Mesh(dotGeo, dotMat);
+        dot.position.copy(surfacePoint);
+        earthPointersGroup.add(dot);
+
+        const ringGeo = new THREE.TorusGeometry(0.35, 0.05, 8, 16);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, depthTest: true, depthWrite: false });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.copy(surfacePoint);
+        ring.lookAt(surfacePoint.clone().add(m.direction));
+        earthPointersGroup.add(ring);
+
+        const groundDisc = createGroundPlane(surfacePoint, m.direction);
+        groundDisc.visible = params.showGroundPlane;
+        groundPlanesGroup.add(groundDisc);
+
+        earthMarkers.push({
+            direction: m.direction.clone(),
+            dot, ring, groundDisc
+        });
+    });
+}
+
+function clearAllMarkers() {
+    if (earthPointersGroup) {
+        disposeGroup(earthPointersGroup);
+        earth.remove(earthPointersGroup);
+        earthPointersGroup = null;
+    }
+    if (groundPlanesGroup) {
+        disposeGroup(groundPlanesGroup);
+        earth.remove(groundPlanesGroup);
+        groundPlanesGroup = null;
+    }
+    earthMarkers = [];
+}
+
+function onEarthClick(event) {
+    if (!clickingEnabled) return;
+
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    if (!earthGlobe) return;
+
+    const earthIntersects = raycaster.intersectObject(earthGlobe, false);
+    if (earthIntersects.length > 0) {
+        placeEarthMarker(earthIntersects[0].point);
+    }
+}
+
+function setupEvents() {
+    document.getElementById('btnMode').onclick = () => {
+        modeEarthRotate = !modeEarthRotate;
+        const btn = document.getElementById('btnMode');
+        if (modeEarthRotate) {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🌍 地球自转（天球静止）';
+        } else {
+            btn.classList.add('btn-active');
+            btn.innerText = '🌌 天球旋转（地球静止）';
+        }
+    };
+
+    document.getElementById('rotationSpeed').oninput = function() {
+        params.speed = parseFloat(this.value);
+        document.getElementById('speedVal').innerText = params.speed.toFixed(1) + 'x';
+    };
+
+    document.getElementById('earthRadius').oninput = function() {
+        params.earthRadius = parseFloat(this.value);
+        document.getElementById('earthRadiusVal').innerText = params.earthRadius.toFixed(1);
+        createEarth();
+    };
+
+    document.getElementById('btnStars').onclick = () => {
+        params.showStars = !params.showStars;
+        constellationLinesGroup.visible = params.showStars;
+        const btn = document.getElementById('btnStars');
+        if (params.showStars) {
+            btn.classList.add('btn-active');
+            btn.innerText = '⭐ 星座连线 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '⭐ 星座连线';
+        }
+    };
+
+    document.getElementById('btnGrid').onclick = () => {
+        params.showGrid = !params.showGrid;
+        celestialGridGroup.visible = params.showGrid;
+        const btn = document.getElementById('btnGrid');
+        if (params.showGrid) {
+            btn.classList.add('btn-active');
+            btn.innerText = '📐 天球网格 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '📐 天球网格';
+        }
+    };
+
+    document.getElementById('btnLabels').onclick = () => {
+        params.showLabels = !params.showLabels;
+        constellationLabelsGroup.visible = params.showLabels;
+        const btn = document.getElementById('btnLabels');
+        if (params.showLabels) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🏷 星座名称 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🏷 星座名称';
+        }
+    };
+
+    document.getElementById('sunDeclination').oninput = function() {
+        params.sunDeclination = parseFloat(this.value);
+        const decStr = params.sunDeclination >= 0
+            ? '+' + params.sunDeclination.toFixed(1) + '°'
+            : params.sunDeclination.toFixed(1) + '°';
+        document.getElementById('sunDecVal').innerText = decStr;
+        updateMainSunPosition();
+    };
+
+    document.getElementById('btnSunDecLine').onclick = () => {
+        params.showSunDecLine = !params.showSunDecLine;
+        const btn = document.getElementById('btnSunDecLine');
+        if (params.showSunDecLine) {
+            btn.classList.add('btn-active');
+            btn.innerText = '☀ 赤纬纬线 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '☀ 赤纬纬线';
+        }
+        updateAllSunDecLines();
+        if (sunMarkers.length > 0 && params.showSunDecLine && !sunMarkers[0].decLine) {
+            sunMarkers[0].decLine = createSunDecLine(params.sunDeclination);
+            sunMarkers[0].decLine.visible = true;
+        }
+    };
+
+    document.getElementById('btnAddSun').onclick = () => {
+        addSun(params.sunDeclination);
+    };
+
+    document.getElementById('btnRemoveSun').onclick = () => {
+        removeLastSun();
+    };
+
+    document.getElementById('btnPlaceMarker').onclick = () => {
+        clickingEnabled = !clickingEnabled;
+        const btn = document.getElementById('btnPlaceMarker');
+        if (clickingEnabled) {
+            btn.classList.add('btn-active');
+            btn.innerText = '📍 点击放置 ✓';
+            controls.enabled = false;
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '📍 点击放置';
+            controls.enabled = true;
+        }
+    };
+
+    document.getElementById('btnGroundPlane').onclick = () => {
+        params.showGroundPlane = !params.showGroundPlane;
+        const btn = document.getElementById('btnGroundPlane');
+        if (params.showGroundPlane) {
+            btn.classList.add('btn-active');
+            btn.innerText = '📏 显示地平面 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '📏 显示地平面';
+        }
+        earthMarkers.forEach(m => { if (m.groundDisc) m.groundDisc.visible = params.showGroundPlane; });
+    };
+
+    document.getElementById('btnClearMarkers').onclick = () => {
+        clearAllMarkers();
+    };
+
+    document.getElementById('btnSubsolarPoint').onclick = () => {
+        params.showSubsolarPoint = !params.showSubsolarPoint;
+        const btn = document.getElementById('btnSubsolarPoint');
+        if (params.showSubsolarPoint) {
+            btn.classList.add('btn-active');
+            btn.innerText = '📍 直射点 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '📍 直射点';
+        }
+        if (subsolarMarker) subsolarMarker.visible = params.showSubsolarPoint;
+    };
+
+    document.getElementById('btnEquatorOnEarth').onclick = () => {
+        params.showEquatorOnEarth = !params.showEquatorOnEarth;
+        const btn = document.getElementById('btnEquatorOnEarth');
+        if (params.showEquatorOnEarth) {
+            btn.classList.add('btn-active');
+            btn.innerText = '⚪ 赤道 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '⚪ 赤道';
+        }
+        if (earthLatLines.equator) earthLatLines.equator.visible = params.showEquatorOnEarth;
+    };
+
+    document.getElementById('btnTropicsOnEarth').onclick = () => {
+        params.showTropicsOnEarth = !params.showTropicsOnEarth;
+        const btn = document.getElementById('btnTropicsOnEarth');
+        if (params.showTropicsOnEarth) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🔴 回归线 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🔴 回归线';
+        }
+        if (earthLatLines.tropicCancer) earthLatLines.tropicCancer.visible = params.showTropicsOnEarth;
+        if (earthLatLines.tropicCapricorn) earthLatLines.tropicCapricorn.visible = params.showTropicsOnEarth;
+    };
+
+    document.getElementById('btnPolarCirclesOnEarth').onclick = () => {
+        params.showPolarCirclesOnEarth = !params.showPolarCirclesOnEarth;
+        const btn = document.getElementById('btnPolarCirclesOnEarth');
+        if (params.showPolarCirclesOnEarth) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🔵 极圈 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🔵 极圈';
+        }
+        if (earthLatLines.arcticCircle) earthLatLines.arcticCircle.visible = params.showPolarCirclesOnEarth;
+        if (earthLatLines.antarcticCircle) earthLatLines.antarcticCircle.visible = params.showPolarCirclesOnEarth;
+    };
+
+    document.getElementById('btnTerminator').onclick = () => {
+        if (sunMarkers.length !== 1) return;
+        params.showTerminator = !params.showTerminator;
+        const btn = document.getElementById('btnTerminator');
+        if (params.showTerminator) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🌓 晨昏圈 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🌓 晨昏圈';
+        }
+        if (terminatorRing) terminatorRing.visible = params.showTerminator;
+    };
+
+    renderer.domElement.addEventListener('click', onEarthClick);
+
+    window.addEventListener('resize', () => {
+        const aspect = window.innerWidth / window.innerHeight;
+        camera.left = -FRUSTUM_SIZE * aspect / 2;
+        camera.right = FRUSTUM_SIZE * aspect / 2;
+        camera.top = FRUSTUM_SIZE / 2;
+        camera.bottom = -FRUSTUM_SIZE / 2;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const baseSpeed = 0.003;
+    const speed = baseSpeed * params.speed;
+
+    if (modeEarthRotate) {
+        earth.rotation.y += speed;
+        if (earthCloud) earthCloud.rotation.y += speed * 1.1;
+    } else {
+        celestialGroup.rotation.y -= speed;
+    }
+
+    updateTerminatorInScene();
+    updateNightShader();
+    if (sunLight && sunMarkers.length > 0) {
+        const sunPos = new THREE.Vector3();
+        sunMarkers[0].group.getWorldPosition(sunPos);
+        sunLight.position.copy(sunPos);
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>

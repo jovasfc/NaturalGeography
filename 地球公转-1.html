@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球公转与二十四节气</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { margin: 0; overflow: hidden; background-color: #020617; font-family: 'Inter', sans-serif; color: white; }
+        canvas { display: block; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 1rem;
+        }
+        .btn-active {
+            background: rgba(59, 130, 246, 0.3) !important;
+            border-color: rgba(59, 130, 246, 0.6) !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="absolute top-6 left-6 z-[60] w-72 space-y-3 pointer-events-none" id="leftPanel">
+    <div class="glass-panel p-4 pointer-events-auto">
+        <h1 class="text-lg font-bold flex items-center gap-2 mb-3 cursor-pointer select-none" id="panelToggle">
+            <span class="text-yellow-400">☀</span> 地球公转演示
+            <span class="ml-auto text-xs text-gray-500 hover:text-gray-300 transition" id="collapseIcon">▲</span>
+        </h1>
+
+        <div id="panelBody" class="space-y-2.5">
+            <section>
+                <div class="flex justify-between text-xs mb-1.5">
+                    <span class="text-gray-400">公转速度</span>
+                    <span id="orbitSpeedVal" class="text-blue-300 font-mono">1.0x</span>
+                </div>
+                <input type="range" id="orbitSpeed" min="0" max="5" step="0.1" value="1" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </section>
+
+            <section>
+                <div class="flex justify-between text-xs mb-1.5">
+                    <span class="text-gray-400">日期 (天数)</span>
+                    <span id="dayLabel" class="text-yellow-300 font-mono">3月20日</span>
+                </div>
+                <input type="range" id="daySlider" min="1" max="365" step="1" value="80" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </section>
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="btnApsides" class="glass-panel py-1 text-xs bg-white/5 border-white/10 transition hover:bg-white/10  btn-active">🔴🔵 近日/远日点 ✓</button>
+                <button id="btnToggleTerms" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 btn-active">📅 隐藏节气</button>
+            </section>
+
+            <section class="grid grid-cols-2 gap-2">
+                <button id="btnPause" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10">⏸ 暂停公转</button>
+                <button id="btnFocusEarth" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 w-full">🔍 聚焦地球</button>
+            </section>
+            
+            <hr class="border-gray-800">
+
+            <section>
+                <div class="text-xs text-gray-400 mb-1.5 font-medium">纬线标记</div>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button id="btnEquator" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 text-white btn-active">⚪ 赤道 ✓</button>
+                    <button id="btnTropicCancer" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 btn-active" style="color:#ff6644;">🔴 北回归 ✓</button>
+                    <button id="btnTropicCapricorn" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 btn-active" style="color:#ff6644;">🔴 南回归 ✓</button>
+                    <button id="btnArctic" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 btn-active" style="color:#44aaff;">🔵 北极圈 ✓</button>
+                    <button id="btnAntarctic" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 btn-active" style="color:#44aaff;">🔵 南极圈 ✓</button>
+                    <button id="btnAllLatitudes" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 w-full mt-1 btn-active">📐 全部纬线 ✓</button>
+                </div>
+                
+                <button id="btnNoonMidnight" class="glass-panel py-1 text-[11px] bg-white/5 border-white/10 transition hover:bg-white/10 w-full mt-1">🕐 0时/12时经线</button>
+            </section>
+
+            <hr class="border-gray-800">
+
+            <section>
+                <div class="text-xs text-gray-400 mb-1.5 font-medium">二分二至 聚焦</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btnSpring" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 text-green-400">🌸 春分</button>
+                    <button id="btnSummer" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 text-red-400">☀ 夏至</button>
+                    <button id="btnAutumn" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 text-orange-400">🍂 秋分</button>
+                    <button id="btnWinter" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 text-blue-400">❄ 冬至</button>
+                </div>
+            </section>
+
+            <button id="btnResetView" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 w-full">🔭 重置俯瞰视角</button>
+
+            <button id="btnProjection" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 w-full">📐 切换透视投影</button>
+
+            <hr class="border-gray-800">
+
+            <section>
+                <div class="text-xs text-gray-400 mb-1.5 font-medium">辅助平面</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btnEquatorPlane" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 text-blue-400">🔵 赤道面</button>
+                    <button id="btnEclipticPlane" class="glass-panel py-1.5 text-xs bg-white/5 border-white/10 transition hover:bg-white/10 text-orange-400">🟠 黄道面</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<div class="absolute top-6 right-6 z-[60] glass-panel p-3 pointer-events-auto w-44">
+    <div class="text-[10px] text-gray-500 uppercase mb-1">当前节气</div>
+    <div id="currentTerm" class="text-lg font-bold text-yellow-300">春分</div>
+    <div id="currentTermDate" class="text-xs text-gray-400 mt-0.5">3月20日</div>
+    <div class="mt-2 pt-2 border-t border-white/10">
+        <div class="text-[10px] text-gray-500 uppercase mb-1">太阳直射纬度</div>
+        <div id="subsolarLat" class="text-sm font-mono text-orange-400">0° (赤道)</div>
+    </div>
+</div>
+
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2 pointer-events-none">
+    <div class="glass-panel p-3 pointer-events-auto flex items-center gap-4">
+        <div class="text-center">
+            <div class="text-[10px] text-gray-500 uppercase">赤道</div>
+            <div class="text-xs font-semibold text-white">白色</div>
+        </div>
+        <div class="w-px h-6 bg-gray-700"></div>
+        <div class="text-center">
+            <div class="text-[10px] text-gray-500 uppercase">回归线</div>
+            <div class="text-xs font-semibold" style="color:#ff6644;">23.5°N/S</div>
+        </div>
+        <div class="w-px h-6 bg-gray-700"></div>
+        <div class="text-center">
+            <div class="text-[10px] text-gray-500 uppercase">直射点</div>
+            <div class="text-xs font-semibold text-red-400">红色标记</div>
+        </div>
+        <div class="w-px h-6 bg-gray-700"></div>
+        <div class="text-center">
+            <div class="text-[10px] text-gray-500 uppercase">地轴</div>
+            <div class="text-xs font-semibold text-white">白色轴线</div>
+        </div>
+        <div class="w-px h-6 bg-gray-700"></div>
+        <div class="text-center">
+            <div class="text-[10px] text-gray-500 uppercase">晨昏线</div>
+            <div class="text-xs font-semibold text-yellow-400">黄色环</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ORBIT_RADIUS = 22;
+const EARTH_RADIUS = 3;
+const AXIAL_TILT = 23.44;
+const DEG = Math.PI / 180;
+
+const TEXTURES = {
+    day: 'img/2_no_clouds_4k.jpg',
+    clouds: 'img/fair_clouds_4k.png',
+    stars: 'img/galaxy_starfield.png'
+};
+
+const SOLAR_TERMS = [
+    { name: '春分', angle: 0,        date: '3月20日', key: true,  color: 0x22c55e, emoji: '🌸' },
+    { name: '清明', angle: 15,       date: '4月5日',  key: false, color: 0x94a3b8 },
+    { name: '谷雨', angle: 30,       date: '4月20日', key: false, color: 0x94a3b8 },
+    { name: '立夏', angle: 45,       date: '5月6日',  key: false, color: 0x94a3b8 },
+    { name: '小满', angle: 60,       date: '5月21日', key: false, color: 0x94a3b8 },
+    { name: '芒种', angle: 75,       date: '6月6日',  key: false, color: 0x94a3b8 },
+    { name: '夏至', angle: 90,       date: '6月21日', key: true,  color: 0xef4444, emoji: '☀' },
+    { name: '小暑', angle: 105,      date: '7月7日',  key: false, color: 0x94a3b8 },
+    { name: '大暑', angle: 120,      date: '7月23日', key: false, color: 0x94a3b8 },
+    { name: '立秋', angle: 135,      date: '8月7日',  key: false, color: 0x94a3b8 },
+    { name: '处暑', angle: 150,      date: '8月23日', key: false, color: 0x94a3b8 },
+    { name: '白露', angle: 165,      date: '9月8日',  key: false, color: 0x94a3b8 },
+    { name: '秋分', angle: 180,      date: '9月23日', key: true,  color: 0xf59e0b, emoji: '🍂' },
+    { name: '寒露', angle: 195,      date: '10月8日', key: false, color: 0x94a3b8 },
+    { name: '霜降', angle: 210,      date: '10月23日',key: false, color: 0x94a3b8 },
+    { name: '立冬', angle: 225,      date: '11月7日', key: false, color: 0x94a3b8 },
+    { name: '小雪', angle: 240,      date: '11月22日',key: false, color: 0x94a3b8 },
+    { name: '大雪', angle: 255,      date: '12月7日', key: false, color: 0x94a3b8 },
+    { name: '冬至', angle: 270,      date: '12月22日',key: true,  color: 0x3b82f6, emoji: '❄' },
+    { name: '小寒', angle: 285,      date: '1月5日',  key: false, color: 0x94a3b8 },
+    { name: '大寒', angle: 300,      date: '1月20日', key: false, color: 0x94a3b8 },
+    { name: '立春', angle: 315,      date: '2月4日',  key: false, color: 0x94a3b8 },
+    { name: '雨水', angle: 330,      date: '2月19日', key: false, color: 0x94a3b8 },
+    { name: '惊蛰', angle: 345,      date: '3月6日',  key: false, color: 0x94a3b8 }
+];
+
+const params = {
+    dayOfYear: 80,
+    orbitSpeed: 1,
+    paused: false,
+    showTerms: true,
+    focusedTerm: null,
+    earthDailyAngle: 0,
+    showEquatorPlane: false,
+    showEclipticPlane: false,
+    showEquator: true,
+    showTropicOfCancer: true,
+    showTropicOfCapricorn: true,
+    showArcticCircle: true,
+    showAntarcticCircle: true,
+    showNoonMidnight: false,
+    showApsides: true
+};
+
+let scene, camera, renderer, controls;
+const FRUSTUM_SIZE = 50;
+let isOrthographic = true;
+let sunGroup, sunMesh, sunGlow;
+let orbitRing;
+let earthOrbitGroup, earthTiltGroup, earthDailyGroup;
+let earthGlobe, cloudMesh;
+let termLabelsGroup;
+let termMarkersGroup;
+let nightShaderMesh, terminatorLine;
+let latitudeLines = {};
+let focusedView = false, focusTarget = null;
+let terminatorPivot;
+let earthAxisLine;
+let subsolarDot, subsolarRing, subsolarArrow;
+let equatorPlaneMesh, eclipticPlaneMesh;
+let noonMidnightLine, midnightLine;
+let apsidesGroup;
+
+window.onload = init;
+
+function init() {
+    scene = new THREE.Scene();
+
+    const aspect = window.innerWidth / window.innerHeight;
+    camera = new THREE.OrthographicCamera(
+        -FRUSTUM_SIZE * aspect / 2,
+        FRUSTUM_SIZE * aspect / 2,
+        FRUSTUM_SIZE / 2,
+        -FRUSTUM_SIZE / 2,
+        0.1,
+        200
+    );
+    camera.position.set(0, 35, 40);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 5;
+    controls.maxDistance = 100;
+    controls.target.set(0, 0, 0);
+
+    createStarfield();
+    createSun();
+    createOrbitRing();
+    createApsideMarkers();
+    createTermMarkers();
+    createEarthSystem();
+    setupAmbientLight();
+    createNightShader();
+    createTerminator();
+    createEarthLatitudeLines();
+    createSubsolarMarker();
+    createEquatorPlane();
+    createEclipticPlane();
+    createNoonMidnightMeridian();
+    updateEarthPosition(params.dayOfYear);
+    setupEvents();
+    animate();
+}
+
+function createStarfield() {
+    const geo = new THREE.SphereGeometry(90, 32, 32);
+    const loader = new THREE.TextureLoader();
+    const mat = new THREE.MeshBasicMaterial({
+        map: loader.load(TEXTURES.stars),
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.4
+    });
+    scene.add(new THREE.Mesh(geo, mat));
+}
+
+function createSun() {
+    sunGroup = new THREE.Group();
+    scene.add(sunGroup);
+
+    const loader = new THREE.TextureLoader();
+    const sunGeo = new THREE.SphereGeometry(2.5, 64, 64);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+    sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    sunGroup.add(sunMesh);
+
+    const glowGeo = new THREE.SphereGeometry(3.2, 64, 64);
+    const glowMat = new THREE.ShaderMaterial({
+        uniforms: {},
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            void main() {
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vPosition = worldPos.xyz;
+                vNormal = normalize(mat3(modelMatrix) * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            void main() {
+                vec3 viewDir = normalize(cameraPosition - vPosition);
+                float rim = 1.0 - abs(dot(vNormal, viewDir));
+                float alpha = pow(rim, 3.0) * 0.5;
+                gl_FragColor = vec4(1.0, 0.85, 0.2, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false
+    });
+    sunGlow = new THREE.Mesh(glowGeo, glowMat);
+    sunGroup.add(sunGlow);
+
+    const light = new THREE.PointLight(0xffeedd, 3, 100);
+    sunGroup.add(light);
+}
+
+function createOrbitRing() {
+    const geo = new THREE.TorusGeometry(ORBIT_RADIUS, 0.12, 16, 256);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x556688, transparent: true, opacity: 0.8 });
+    orbitRing = new THREE.Mesh(geo, mat);
+    orbitRing.rotation.x = Math.PI / 2;
+    scene.add(orbitRing);
+}
+
+function createApsideMarkers() {
+    apsidesGroup = new THREE.Group();
+    scene.add(apsidesGroup);
+
+    const periPos = getOrbitPosition(3);
+    const apPos = getOrbitPosition(185);
+
+    const periDotGeo = new THREE.SphereGeometry(0.35, 16, 16);
+    const periDotMat = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true });
+    const periDot = new THREE.Mesh(periDotGeo, periDotMat);
+    periDot.position.set(periPos.x, 0, periPos.z);
+    apsidesGroup.add(periDot);
+
+    const periRingGeo = new THREE.TorusGeometry(0.6, 0.06, 8, 24);
+    const periRingMat = new THREE.MeshBasicMaterial({ color: 0xff4444, depthWrite: false });
+    const periRing = new THREE.Mesh(periRingGeo, periRingMat);
+    periRing.position.set(periPos.x, 0, periPos.z);
+    periRing.rotation.x = Math.PI / 2;
+    apsidesGroup.add(periRing);
+
+    const periLabel = makeLabelSprite('近日点 1月3日', 0xff6644, 1.0);
+    periLabel.position.set(periPos.x * 1.14, 1.2, periPos.z * 1.14);
+    periLabel.scale.set(4, 1.6, 1);
+    apsidesGroup.add(periLabel);
+
+    const apDotGeo = new THREE.SphereGeometry(0.35, 16, 16);
+    const apDotMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, depthTest: true });
+    const apDot = new THREE.Mesh(apDotGeo, apDotMat);
+    apDot.position.set(apPos.x, 0, apPos.z);
+    apsidesGroup.add(apDot);
+
+    const apRingGeo = new THREE.TorusGeometry(0.6, 0.06, 8, 24);
+    const apRingMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, depthWrite: false });
+    const apRing = new THREE.Mesh(apRingGeo, apRingMat);
+    apRing.position.set(apPos.x, 0, apPos.z);
+    apRing.rotation.x = Math.PI / 2;
+    apsidesGroup.add(apRing);
+
+    const apLabel = makeLabelSprite('远日点 7月4日', 0x4488ff, 1.0);
+    apLabel.position.set(apPos.x * 1.14, 1.2, apPos.z * 1.14);
+    apLabel.scale.set(4, 1.6, 1);
+    apsidesGroup.add(apLabel);
+}
+
+function createTermMarkers() {
+    termMarkersGroup = new THREE.Group();
+    termLabelsGroup = new THREE.Group();
+    scene.add(termMarkersGroup);
+    scene.add(termLabelsGroup);
+
+    SOLAR_TERMS.forEach(term => {
+        const rad = (term.angle + 180) * DEG;
+        const x = ORBIT_RADIUS * Math.sin(rad);
+        const z = ORBIT_RADIUS * Math.cos(rad);
+
+        if (term.key) {
+            const dotGeo = new THREE.SphereGeometry(0.35, 16, 16);
+            const dotMat = new THREE.MeshBasicMaterial({ color: term.color });
+            const dot = new THREE.Mesh(dotGeo, dotMat);
+            dot.position.set(x, 0, z);
+            termMarkersGroup.add(dot);
+
+            const ringGeo = new THREE.TorusGeometry(0.6, 0.06, 8, 24);
+            const ringMat = new THREE.MeshBasicMaterial({ color: term.color, depthWrite: false });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.set(x, 0, z);
+            ring.rotation.x = Math.PI / 2;
+            termMarkersGroup.add(ring);
+        } else {
+            const dotGeo = new THREE.SphereGeometry(0.15, 8, 8);
+            const dotMat = new THREE.MeshBasicMaterial({ color: 0x556677 });
+            const dot = new THREE.Mesh(dotGeo, dotMat);
+            dot.position.set(x, 0, z);
+            termMarkersGroup.add(dot);
+        }
+
+        const label = makeLabelSprite(term.name, term.key ? term.color : 0x8899aa, term.key ? 1.0 : 0.7);
+        label.position.set(x * 1.12, 1.2, z * 1.12);
+        label.scale.set(term.key ? 3.5 : 2.2, term.key ? 1.4 : 0.9, 1);
+        termLabelsGroup.add(label);
+    });
+}
+
+function makeLabelSprite(text, colorHex, opacity) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const colorStr = '#' + new THREE.Color(colorHex).getHexString();
+    ctx.fillStyle = colorStr;
+    ctx.globalAlpha = opacity;
+    ctx.font = 'Bold 28px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    return sprite;
+}
+
+function createEarthSystem() {
+    earthOrbitGroup = new THREE.Group();
+    scene.add(earthOrbitGroup);
+
+    earthTiltGroup = new THREE.Group();
+    earthTiltGroup.rotation.z = -AXIAL_TILT * DEG;
+    earthOrbitGroup.add(earthTiltGroup);
+
+    const axisLen = EARTH_RADIUS * 1.6;
+    const axisGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -axisLen, 0),
+        new THREE.Vector3(0, axisLen, 0)
+    ]);
+    const axisMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+    earthAxisLine = new THREE.Line(axisGeo, axisMat);
+    earthTiltGroup.add(earthAxisLine);
+
+    earthDailyGroup = new THREE.Group();
+    earthTiltGroup.add(earthDailyGroup);
+
+    const loader = new THREE.TextureLoader();
+
+    const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+    const earthMat = new THREE.MeshLambertMaterial({
+        map: loader.load(TEXTURES.day)
+    });
+    earthGlobe = new THREE.Mesh(earthGeo, earthMat);
+    earthDailyGroup.add(earthGlobe);
+
+    const cloudGeo = new THREE.SphereGeometry(EARTH_RADIUS + 0.05, 64, 64);
+    const cloudMat = new THREE.MeshLambertMaterial({
+        map: loader.load(TEXTURES.clouds),
+        transparent: true,
+        opacity: 0.3
+    });
+    cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+    earthDailyGroup.add(cloudMesh);
+}
+
+function setupAmbientLight() {
+    const ambient = new THREE.AmbientLight(0x606080, 0.8);
+    scene.add(ambient);
+}
+
+function createNightShader() {
+    const nightGeo = new THREE.SphereGeometry(EARTH_RADIUS + 0.08, 80, 80);
+    const nightMat = new THREE.ShaderMaterial({
+        uniforms: {
+            sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+        },
+        vertexShader: `
+            varying vec3 vWorldNormal;
+            varying vec3 vWorldPos;
+            void main() {
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vWorldPos = worldPos.xyz;
+                vWorldNormal = normalize(mat3(modelMatrix) * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vWorldNormal;
+            varying vec3 vWorldPos;
+            uniform vec3 sunDirection;
+            void main() {
+                vec3 toSun = normalize(sunDirection);
+                float d = dot(normalize(vWorldPos), toSun);
+                float night = 1.0 - smoothstep(-0.15, 0.15, d);
+                float alpha = night * 0.80;
+                gl_FragColor = vec4(0.0, 0.0, 0.07, alpha);
+            }
+        `,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false
+    });
+    nightShaderMesh = new THREE.Mesh(nightGeo, nightMat);
+    earthDailyGroup.add(nightShaderMesh);
+}
+
+function createTerminator() {
+    terminatorPivot = new THREE.Group();
+    scene.add(terminatorPivot);
+
+    const ringGeo = new THREE.TorusGeometry(EARTH_RADIUS + 0.09, 0.04, 16, 100);
+    const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 0.7,
+        depthTest: true,
+        depthWrite: false
+    });
+    terminatorLine = new THREE.Mesh(ringGeo, ringMat);
+    terminatorLine.rotation.x = Math.PI / 2;
+    terminatorPivot.add(terminatorLine);
+}
+
+function createSubsolarMarker() {
+    const dotGeo = new THREE.SphereGeometry(0.18, 16, 16);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true });
+    subsolarDot = new THREE.Mesh(dotGeo, dotMat);
+    scene.add(subsolarDot);
+
+    const ringGeo = new THREE.TorusGeometry(0.3, 0.04, 8, 16);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true, depthWrite: false });
+    subsolarRing = new THREE.Mesh(ringGeo, ringMat);
+    scene.add(subsolarRing);
+
+    subsolarArrow = new THREE.Group();
+    const shaftGeo = new THREE.CylinderGeometry(0.06, 0.06, 2.0, 8);
+    const shaftMat = new THREE.MeshBasicMaterial({ color: 0xffcc44 });
+    const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+    shaft.position.y = 1.0;
+    subsolarArrow.add(shaft);
+    const headGeo = new THREE.ConeGeometry(0.16, 0.5, 8);
+    const headMat = new THREE.MeshBasicMaterial({ color: 0xff8844 });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 2.15;
+    subsolarArrow.add(head);
+    scene.add(subsolarArrow);
+}
+
+function createEquatorPlane() {
+    const planeGeo = new THREE.CircleGeometry(ORBIT_RADIUS + 2, 64);
+    const planeMat = new THREE.MeshBasicMaterial({
+        color: 0x4488ff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false
+    });
+    equatorPlaneMesh = new THREE.Mesh(planeGeo, planeMat);
+    equatorPlaneMesh.rotation.x = -Math.PI / 2;
+    equatorPlaneMesh.visible = false;
+    earthTiltGroup.add(equatorPlaneMesh);
+}
+
+function createEclipticPlane() {
+    const planeGeo = new THREE.CircleGeometry(ORBIT_RADIUS + 4, 64);
+    const planeMat = new THREE.MeshBasicMaterial({
+        color: 0xff8844,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.10,
+        depthWrite: false
+    });
+    eclipticPlaneMesh = new THREE.Mesh(planeGeo, planeMat);
+    eclipticPlaneMesh.rotation.x = -Math.PI / 2;
+    eclipticPlaneMesh.visible = false;
+    scene.add(eclipticPlaneMesh);
+
+    const ringGeo = new THREE.TorusGeometry(ORBIT_RADIUS + 2, 0.08, 8, 128);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.4, depthWrite: false });
+    const outerRing = new THREE.Mesh(ringGeo, ringMat);
+    outerRing.rotation.x = Math.PI / 2;
+    eclipticPlaneMesh.add(outerRing);
+}
+
+function createNoonMidnightMeridian() {
+    const R = EARTH_RADIUS + 0.07;
+    const segments = 80;
+    const noonPoints = [];
+    const midPoints = [];
+    for (let i = 0; i <= segments; i++) {
+        const a = (i / segments) * Math.PI;
+        noonPoints.push(new THREE.Vector3(0, R * Math.cos(a), R * Math.sin(a)));
+        midPoints.push(new THREE.Vector3(0, R * Math.cos(a), -R * Math.sin(a)));
+    }
+    const noonGeo = new THREE.BufferGeometry().setFromPoints(noonPoints);
+    const noonMat = new THREE.LineBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: true,
+        depthWrite: false
+    });
+    noonMidnightLine = new THREE.Line(noonGeo, noonMat);
+    noonMidnightLine.visible = false;
+    scene.add(noonMidnightLine);
+
+    const midGeo = new THREE.BufferGeometry().setFromPoints(midPoints);
+    const midMat = new THREE.LineBasicMaterial({
+        color: 0x4488ff,
+        transparent: true,
+        opacity: 0.7,
+        depthTest: true,
+        depthWrite: false
+    });
+    midnightLine = new THREE.Line(midGeo, midMat);
+    midnightLine.visible = false;
+    scene.add(midnightLine);
+}
+
+function createEarthLatitudeLines() {
+    const R = EARTH_RADIUS + 0.08;
+    const markings = [
+        { name: 'equator',  deg: 0,     color: 0xffffff },
+        { name: 'tropicOfCancer', deg: 23.44, color: 0xff6644 },
+        { name: 'tropicOfCapricorn', deg: -23.44,color: 0xff6644 },
+        { name: 'arcticCircle', deg: 66.56, color: 0x44aaff },
+        { name: 'antarcticCircle', deg: -66.56,color: 0x44aaff }
+    ];
+
+    markings.forEach(m => {
+        const latRad = m.deg * DEG;
+        const r = R * Math.cos(latRad);
+        const y = R * Math.sin(latRad);
+        const ringGeo = new THREE.TorusGeometry(r, 0.025, 16, 120);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: m.color,
+            transparent: true,
+            opacity: 0.85,
+            depthTest: true,
+            depthWrite: false
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = y;
+        ring.renderOrder = 1;
+        earthDailyGroup.add(ring);
+        latitudeLines[m.name] = ring;
+    });
+}
+
+function getOrbitPosition(dayOfYear) {
+    const frac = (dayOfYear - 80) / 365.25;
+    const angle = frac * 2 * Math.PI + Math.PI;
+    return { x: ORBIT_RADIUS * Math.sin(angle), z: ORBIT_RADIUS * Math.cos(angle), angle: angle };
+}
+
+function getSunDirection() {
+    const pos = earthOrbitGroup.position;
+    return new THREE.Vector3(-pos.x, 0, -pos.z).normalize();
+}
+
+function getDeclination(dayOfYear) {
+    const rad = (dayOfYear - 80) / 365.25 * 2 * Math.PI;
+    return AXIAL_TILT * Math.sin(rad);
+}
+
+function updateEarthPosition(dayOfYear) {
+    const pos = getOrbitPosition(dayOfYear);
+    earthOrbitGroup.position.set(pos.x, 0, pos.z);
+
+    const sunDir = getSunDirection();
+    if (nightShaderMesh) {
+        nightShaderMesh.material.uniforms.sunDirection.value.copy(sunDir);
+    }
+
+    if (terminatorPivot) {
+        const earthWorldPos = new THREE.Vector3();
+        earthOrbitGroup.getWorldPosition(earthWorldPos);
+        terminatorPivot.position.copy(earthWorldPos);
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir);
+        terminatorPivot.quaternion.copy(q);
+
+        const subsolarWorldPos = earthWorldPos.clone().add(sunDir.clone().multiplyScalar(EARTH_RADIUS + 0.05));
+        subsolarDot.position.copy(subsolarWorldPos);
+        subsolarRing.position.copy(subsolarWorldPos);
+        subsolarRing.quaternion.copy(q);
+        subsolarArrow.position.copy(subsolarWorldPos.clone().add(sunDir.clone().multiplyScalar(2.4)));
+        const arrowQ = new THREE.Quaternion();
+        arrowQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir.clone().negate());
+        subsolarArrow.quaternion.copy(arrowQ);
+    }
+
+    if (noonMidnightLine) {
+        const earthWorldPos2 = new THREE.Vector3();
+        earthOrbitGroup.getWorldPosition(earthWorldPos2);
+        noonMidnightLine.position.copy(earthWorldPos2);
+        const e = earthTiltGroup.matrixWorld.elements;
+        const axisDir = new THREE.Vector3(e[4], e[5], e[6]).normalize();
+        const zDir = sunDir.clone().sub(axisDir.clone().multiplyScalar(sunDir.dot(axisDir))).normalize();
+        const xDir = new THREE.Vector3().crossVectors(axisDir, zDir).normalize();
+        const m4 = new THREE.Matrix4().makeBasis(xDir, axisDir, zDir);
+        noonMidnightLine.quaternion.setFromRotationMatrix(m4);
+        midnightLine.position.copy(earthWorldPos2);
+        midnightLine.quaternion.setFromRotationMatrix(m4);
+    }
+
+    const decl = getDeclination(dayOfYear);
+    document.getElementById('subsolarLat').innerText =
+        decl.toFixed(1) + '°' + (decl >= 0 ? 'N' : 'S') +
+        (Math.abs(decl) < 0.1 ? ' (赤道)' : '');
+
+    const term = getCurrentTerm(dayOfYear);
+    document.getElementById('currentTerm').innerText = term.name;
+    document.getElementById('currentTermDate').innerText = term.date;
+    const roundedDay = Math.round(dayOfYear);
+    document.getElementById('dayLabel').innerText = getDateString(roundedDay);
+}
+
+function getCurrentTerm(dayOfYear) {
+    const dayMap = [
+        { day: 80,  idx: 0  }, { day: 95,  idx: 1  }, { day: 110, idx: 2  },
+        { day: 126, idx: 3  }, { day: 141, idx: 4  }, { day: 156, idx: 5  },
+        { day: 172, idx: 6  }, { day: 187, idx: 7  }, { day: 203, idx: 8  },
+        { day: 218, idx: 9  }, { day: 233, idx: 10 }, { day: 248, idx: 11 },
+        { day: 263, idx: 12 }, { day: 278, idx: 13 }, { day: 293, idx: 14 },
+        { day: 309, idx: 15 }, { day: 324, idx: 16 }, { day: 339, idx: 17 },
+        { day: 355, idx: 18 }, { day: 5,   idx: 19 }, { day: 20,  idx: 20 },
+        { day: 35,  idx: 21 }, { day: 50,  idx: 22 }, { day: 65,  idx: 23 }
+    ];
+
+    let closest = dayMap[0];
+    let minDist = Infinity;
+    dayMap.forEach(dm => {
+        let dist = Math.abs(dayOfYear - dm.day);
+        if (dist > 182) dist = 365 - dist;
+        if (dist < minDist) {
+            minDist = dist;
+            closest = dm;
+        }
+    });
+    return SOLAR_TERMS[closest.idx];
+}
+
+function getDateString(dayOfYear) {
+    const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const daysInMonth = [31,28,31,30,31,30,31,31,30,31,30,31];
+    let remaining = dayOfYear;
+    let month = 0;
+    while (month < 12 && remaining > daysInMonth[month]) {
+        remaining -= daysInMonth[month];
+        month++;
+    }
+    return months[month] + remaining + '日';
+}
+
+function focusOnTerm(termIndex) {
+    const term = SOLAR_TERMS[termIndex];
+    params.dayOfYear = getDayForTerm(termIndex);
+    document.getElementById('daySlider').value = params.dayOfYear;
+    updateEarthPosition(params.dayOfYear);
+    params.focusedTerm = term;
+
+    focusedView = true;
+    const focusBtn = document.getElementById('btnFocusEarth');
+    focusBtn.classList.add('btn-active');
+    focusBtn.innerText = '🔍 聚焦地球 ✓';
+    const earthPos = earthOrbitGroup.position.clone();
+    const sunDir = getSunDirection();
+    const camOffset = sunDir.clone().multiplyScalar(10);
+    camera.position.copy(earthPos).add(camOffset).add(new THREE.Vector3(0, 6, 0));
+    controls.target.copy(earthPos);
+    controls.update();
+    params.paused = true;
+    document.getElementById('btnPause').innerText = '▶ 恢复公转';
+    document.getElementById('btnPause').classList.add('btn-active');
+}
+
+function getDayForTerm(termIndex) {
+    const days = [80, 95, 110, 126, 141, 156, 172, 187, 203, 218, 233, 248,
+                  263, 278, 293, 309, 324, 339, 355, 5, 20, 35, 50, 65];
+    return days[termIndex];
+}
+
+function resetOverview() {
+    focusedView = false;
+    params.focusedTerm = null;
+    const focusBtn = document.getElementById('btnFocusEarth');
+    focusBtn.classList.remove('btn-active');
+    focusBtn.innerText = '🔍 聚焦地球';
+    camera.position.set(0, 35, 40);
+    controls.target.set(0, 0, 0);
+    controls.update();
+}
+
+function getWorldSunDir() {
+    return getSunDirection();
+}
+
+function addLatitudeToggle(btnId, paramKey, meshKey, label) {
+    document.getElementById(btnId).onclick = () => {
+        params[paramKey] = !params[paramKey];
+        latitudeLines[meshKey].visible = params[paramKey];
+        const btn = document.getElementById(btnId);
+        if (params[paramKey]) {
+            btn.classList.add('btn-active');
+            btn.innerText = label + ' ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = label;
+        }
+    };
+}
+
+function setupEvents() {
+    document.getElementById('orbitSpeed').oninput = (e) => {
+        params.orbitSpeed = parseFloat(e.target.value);
+        document.getElementById('orbitSpeedVal').innerText = params.orbitSpeed.toFixed(1) + 'x';
+    };
+
+    document.getElementById('daySlider').oninput = (e) => {
+        params.dayOfYear = parseInt(e.target.value);
+        updateEarthPosition(params.dayOfYear);
+    };
+
+    document.getElementById('btnPause').onclick = () => {
+        params.paused = !params.paused;
+        const btn = document.getElementById('btnPause');
+        if (params.paused) {
+            btn.innerText = '▶ 恢复公转';
+            btn.classList.add('btn-active');
+        } else {
+            btn.innerText = '⏸ 暂停公转';
+            btn.classList.remove('btn-active');
+            params.focusedTerm = null;
+        }
+    };
+
+    document.getElementById('btnToggleTerms').onclick = () => {
+        params.showTerms = !params.showTerms;
+        const btn = document.getElementById('btnToggleTerms');
+        if (params.showTerms) {
+            btn.innerText = '📅 隐藏节气';
+            btn.classList.add('btn-active');
+        } else {
+            btn.innerText = '📅 显示节气';
+            btn.classList.remove('btn-active');
+        }
+        termLabelsGroup.visible = params.showTerms;
+        termMarkersGroup.visible = params.showTerms;
+    };
+
+    document.getElementById('btnSpring').onclick = () => focusOnTerm(0);
+    document.getElementById('btnSummer').onclick = () => focusOnTerm(6);
+    document.getElementById('btnAutumn').onclick = () => focusOnTerm(12);
+    document.getElementById('btnWinter').onclick = () => focusOnTerm(18);
+    document.getElementById('btnResetView').onclick = () => resetOverview();
+
+    addLatitudeToggle('btnEquator', 'showEquator', 'equator', '⚪ 赤道');
+    addLatitudeToggle('btnTropicCancer', 'showTropicOfCancer', 'tropicOfCancer', '🔴 北回归');
+    addLatitudeToggle('btnTropicCapricorn', 'showTropicOfCapricorn', 'tropicOfCapricorn', '🔴 南回归');
+    addLatitudeToggle('btnArctic', 'showArcticCircle', 'arcticCircle', '🔵 北极圈');
+    addLatitudeToggle('btnAntarctic', 'showAntarcticCircle', 'antarcticCircle', '🔵 南极圈');
+
+    document.getElementById('btnAllLatitudes').onclick = () => {
+        const allOn = params.showEquator && params.showTropicOfCancer &&
+                      params.showTropicOfCapricorn && params.showArcticCircle && params.showAntarcticCircle;
+        const newVal = !allOn;
+        params.showEquator = newVal;
+        params.showTropicOfCancer = newVal;
+        params.showTropicOfCapricorn = newVal;
+        params.showArcticCircle = newVal;
+        params.showAntarcticCircle = newVal;
+        latitudeLines.equator.visible = newVal;
+        latitudeLines.tropicOfCancer.visible = newVal;
+        latitudeLines.tropicOfCapricorn.visible = newVal;
+        latitudeLines.arcticCircle.visible = newVal;
+        latitudeLines.antarcticCircle.visible = newVal;
+        const allBtn = document.getElementById('btnAllLatitudes');
+        ['btnEquator', 'btnTropicCancer', 'btnTropicCapricorn', 'btnArctic', 'btnAntarctic'].forEach(id => {
+            const b = document.getElementById(id);
+            if (newVal) { b.classList.add('btn-active'); } else { b.classList.remove('btn-active'); }
+        });
+        const labels = ['⚪ 赤道', '🔴 北回归', '🔴 南回归', '🔵 北极圈', '🔵 南极圈'];
+        ['btnEquator', 'btnTropicCancer', 'btnTropicCapricorn', 'btnArctic', 'btnAntarctic'].forEach((id, i) => {
+            document.getElementById(id).innerText = labels[i] + (newVal ? ' ✓' : '');
+        });
+        if (newVal) {
+            allBtn.classList.add('btn-active');
+            allBtn.innerText = '📐 全部纬线 ✓';
+        } else {
+            allBtn.classList.remove('btn-active');
+            allBtn.innerText = '📐 全部纬线';
+        }
+    };
+
+    document.getElementById('btnNoonMidnight').onclick = () => {
+        params.showNoonMidnight = !params.showNoonMidnight;
+        noonMidnightLine.visible = params.showNoonMidnight;
+        midnightLine.visible = params.showNoonMidnight;
+        const btn = document.getElementById('btnNoonMidnight');
+        if (params.showNoonMidnight) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🕐 0时/12时经线 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🕐 0时/12时经线';
+        }
+    };
+
+    document.getElementById('btnApsides').onclick = () => {
+        params.showApsides = !params.showApsides;
+        apsidesGroup.visible = params.showApsides;
+        const btn = document.getElementById('btnApsides');
+        if (params.showApsides) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🔴🔵 近日/远日点 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🔴🔵 近日/远日点';
+        }
+    };
+
+    document.getElementById('btnFocusEarth').onclick = () => {
+        focusedView = !focusedView;
+        const btn = document.getElementById('btnFocusEarth');
+        if (focusedView) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🔍 聚焦地球 ✓';
+            const earthPos = earthOrbitGroup.position.clone();
+            const sunDir = getSunDirection();
+            const camOffset = sunDir.clone().multiplyScalar(10);
+            camera.position.copy(earthPos).add(camOffset).add(new THREE.Vector3(0, 6, 0));
+            controls.target.copy(earthPos);
+            controls.update();
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🔍 聚焦地球';
+            resetOverview();
+        }
+    };
+
+    document.getElementById('btnEquatorPlane').onclick = () => {
+        params.showEquatorPlane = !params.showEquatorPlane;
+        equatorPlaneMesh.visible = params.showEquatorPlane;
+        const btn = document.getElementById('btnEquatorPlane');
+        if (params.showEquatorPlane) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🔵 赤道面 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🔵 赤道面';
+        }
+    };
+
+    document.getElementById('btnEclipticPlane').onclick = () => {
+        params.showEclipticPlane = !params.showEclipticPlane;
+        eclipticPlaneMesh.visible = params.showEclipticPlane;
+        const btn = document.getElementById('btnEclipticPlane');
+        if (params.showEclipticPlane) {
+            btn.classList.add('btn-active');
+            btn.innerText = '🟠 黄道面 ✓';
+        } else {
+            btn.classList.remove('btn-active');
+            btn.innerText = '🟠 黄道面';
+        }
+    };
+
+    document.getElementById('panelToggle').onclick = () => {
+        const body = document.getElementById('panelBody');
+        const icon = document.getElementById('collapseIcon');
+        if (body.style.display === 'none') {
+            body.style.display = '';
+            icon.innerText = '▲';
+        } else {
+            body.style.display = 'none';
+            icon.innerText = '▼';
+        }
+    };
+
+    window.addEventListener('resize', () => {
+        const aspect = window.innerWidth / window.innerHeight;
+        if (isOrthographic) {
+            camera.left = -FRUSTUM_SIZE * aspect / 2;
+            camera.right = FRUSTUM_SIZE * aspect / 2;
+            camera.top = FRUSTUM_SIZE / 2;
+            camera.bottom = -FRUSTUM_SIZE / 2;
+        } else {
+            camera.aspect = aspect;
+        }
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    document.getElementById('btnProjection').onclick = () => {
+        const aspect = window.innerWidth / window.innerHeight;
+        const pos = camera.position.clone();
+        const target = controls.target.clone();
+        if (isOrthographic) {
+            camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 200);
+            document.getElementById('btnProjection').innerText = '📐 切换正射投影';
+        } else {
+            camera = new THREE.OrthographicCamera(
+                -FRUSTUM_SIZE * aspect / 2,
+                FRUSTUM_SIZE * aspect / 2,
+                FRUSTUM_SIZE / 2,
+                -FRUSTUM_SIZE / 2,
+                0.1,
+                200
+            );
+            document.getElementById('btnProjection').innerText = '📐 切换透视投影';
+        }
+        isOrthographic = !isOrthographic;
+        camera.position.copy(pos);
+        camera.lookAt(target);
+        controls.object = camera;
+        controls.target.copy(target);
+        controls.update();
+    };
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (!params.paused) {
+        const delta = 0.1 * params.orbitSpeed;
+        params.dayOfYear += delta;
+        if (params.dayOfYear > 365) params.dayOfYear -= 365;
+        if (params.dayOfYear < 1) params.dayOfYear += 365;
+        document.getElementById('daySlider').value = Math.round(params.dayOfYear);
+        updateEarthPosition(params.dayOfYear);
+
+        params.earthDailyAngle += 0.03 * params.orbitSpeed;
+        earthDailyGroup.rotation.y = params.earthDailyAngle;
+    } else {
+        params.earthDailyAngle += 0.02;
+        earthDailyGroup.rotation.y = params.earthDailyAngle;
+    }
+
+    if (focusedView && !params.paused) {
+        const earthPos = earthOrbitGroup.position.clone();
+        controls.target.copy(earthPos);
+        const sunDir = getSunDirection();
+        const camOffset = sunDir.clone().multiplyScalar(10);
+        camera.position.copy(earthPos).add(camOffset).add(new THREE.Vector3(0, 6, 0));
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
