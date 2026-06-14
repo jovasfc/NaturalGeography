@@ -1,0 +1,2555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>天球模型 · 地球与天球</title>
+  <style>
+    :root {
+      --bg: #0a0a18;
+      --panel-bg: rgba(16, 16, 36, 0.92);
+      --text: #d0d0e0;
+      --accent: #f0b64f;
+      --accent2: #5eb8d4;
+      --slider-track: #2a2a44;
+      --border: rgba(255, 255, 255, 0.12);
+      --btn-bg: #22223a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      overflow: hidden;
+      height: 120vh;
+      width: 100vw;
+      user-select: none;
+    }
+    #canvas-container { position: fixed; inset: 0; z-index: 1; }
+    #panel {
+      position: fixed; top: 16px; left: 8px; z-index: 10;
+      background: var(--panel-bg); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 20px 16px; width: 272px;
+      max-height: calc(100vh - 32px); overflow-y: auto;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: var(--text);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    #panel h3 { text-align: center; font-weight: 600; font-size: 16px; color: var(--accent); margin-bottom: 2px; }
+    #panel .subtitle { text-align: center; font-size: 11px; color: #888; margin-bottom: 4px; }
+    #panel-toggle {
+      position: absolute; top: 16px; left: 14px; z-index: 11;
+      background: none; border: none; color: var(--accent);
+      font-size: 16px; cursor: pointer; padding: 2px 4px;
+      transition: transform 0.2s; line-height: 1;
+    }
+    #panel-toggle:hover { transform: scale(1.2); }
+    #panel-body { overflow: hidden; transition: max-height 0.35s ease, opacity 0.3s ease; }
+    #panel-body.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0; margin-top: 0; }
+    .ctrl-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .ctrl-group label { font-size: 12px; font-weight: 500; color: #aaa; display: flex; justify-content: space-between; }
+    .ctrl-group label span.val { color: var(--accent); font-weight: 600; font-size: 11px; min-width: 40px; text-align: right; }
+    .ctrl-group input[type="range"] {
+      -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px;
+      background: var(--slider-track); outline: none; cursor: pointer;
+    }
+    .ctrl-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .toggle-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .toggle-btn {
+      flex: 1; min-width: 56px; padding: 6px 4px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--btn-bg);
+      color: #999; cursor: pointer; font-size: 9px; font-weight: 500;
+      text-align: center; transition: all 0.2s;
+    }
+    .toggle-btn:hover { background: #2e2e4e; color: #ddd; }
+    .toggle-btn.active { background: var(--accent); color: #1a1a2e; border-color: var(--accent); font-weight: 700; }
+    .toggle-btn.accent2.active { background: var(--accent2); color: #1a1a2e; border-color: var(--accent2); }
+    #info-bar {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10;
+      background: var(--panel-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px 18px;
+      backdrop-filter: blur(12px); color: var(--text);
+      font-size: 12px; text-align: center; white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    #info-bar span { color: var(--accent2); font-weight: 600; }
+
+    /* 天球倾斜面板 */
+    #tilt-panel {
+      position: fixed; top: 360px; right: 8px; z-index: 10;
+      background: var(--panel-bg); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px 12px; width: 210px;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: var(--text);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    #tilt-panel h4 {
+      text-align: center; font-weight: 600; font-size: 13px; color: var(--accent2); margin: 0;
+    }
+    #tilt-panel-toggle {
+      position: absolute; top: 12px; left: 12px; z-index: 11;
+      background: none; border: none; color: var(--accent2);
+      font-size: 14px; cursor: pointer; padding: 2px 4px;
+      transition: transform 0.2s; line-height: 1;
+    }
+    #tilt-panel-toggle:hover { transform: scale(1.2); }
+    #tilt-panel-body { overflow: hidden; transition: max-height 0.35s ease, opacity 0.3s ease; }
+    #tilt-panel-body.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0; margin-top: 0; }
+    #tilt-panel input[type="range"] {
+      -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px;
+      background: var(--slider-track); outline: none; cursor: pointer;
+    }
+    #tilt-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    /* 月球数据面板 */
+    #moon-panel {
+      position: fixed; top: 20px; right: 8px; z-index: 10;
+      background: var(--panel-bg); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 16px 14px; width: 210px;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: var(--text);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    #moon-panel h4 {
+      text-align: center; font-weight: 600; font-size: 13px; color: var(--accent); margin: 0;
+    }
+    #moon-panel-toggle {
+      position: absolute; top: 12px; left: 12px; z-index: 11;
+      background: none; border: none; color: var(--accent);
+      font-size: 14px; cursor: pointer; padding: 2px 4px;
+      transition: transform 0.2s; line-height: 1;
+    }
+    #moon-panel-toggle:hover { transform: scale(1.2); }
+    #moon-panel-body { overflow: hidden; transition: max-height 0.35s ease, opacity 0.3s ease; }
+    #moon-panel-body.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0; margin-top: 0; }
+    #moon-panel input[type="range"] {
+      -webkit-appearance: none; width: 100%; height: 5px; border-radius: 3px;
+      background: var(--slider-track); outline: none; cursor: pointer;
+    }
+    #moon-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    @media (max-width: 600px) {
+      #panel { width: 200px; right: 200px; top: 8px; padding: 10px 8px 8px; gap: 6px; }
+      #panel h3 { font-size: 13px; }
+      .toggle-btn { font-size: 8px; min-width: 44px; padding: 4px 2px; }
+      #info-bar { font-size: 10px; padding: 6px 12px; }
+      #tilt-panel { width: 170px; right: 8px; top: 8px; padding: 10px 12px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="panel">
+    <button id="panel-toggle">▾</button>
+    <h3>🌐 天球模型</h3>
+    <div id="panel-body">
+    <div class="subtitle">地球（地轴竖直）· 天球</div>
+    <div id="date-display" style="text-align:center;font-size:14px;font-weight:600;color:#fff;">6月22日</div>
+    <div class="ctrl-group">
+      <label>太阳赤纬 <span class="val" id="dec-val">+23.4°</span></label>
+      <input type="range" id="slider-dec" min="-23.44" max="23.44" step="0.1" value="23.44">
+    </div>
+    <div class="ctrl-group">
+      <label>地球自转 <span class="val" id="rot-val">0°</span></label>
+      <input type="range" id="slider-rot" min="0" max="360" step="0.5" value="0">
+    </div>
+    <div class="ctrl-group">
+      <label>视图距离 <span class="val" id="dist-val">50</span></label>
+      <input type="range" id="slider-dist" min="6" max="100" step="0.5" value="50">
+    </div>
+    <div class="ctrl-group">
+      <label>地球半径 <span class="val" id="radius-val">4.00</span></label>
+      <input type="range" id="slider-radius" min="0.00" max="10.00" step="0.05" value="4.00">
+    </div>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="btn-tex">地球纹理</button>
+      <button class="toggle-btn" id="btn-caxis">天轴</button>
+      <button class="toggle-btn active" id="btn-axis">地轴</button>
+    </div>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="btn-sky">天球球面</button>
+      <button class="toggle-btn active" id="btn-stars">星空</button>
+      <button class="toggle-btn active" id="btn-cequator">天赤道</button>
+    </div>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="btn-ecliptic">黄道</button>
+      <button class="toggle-btn active" id="btn-cgrid">天球网格</button>
+      <button class="toggle-btn active" id="btn-grid">经纬网格</button>
+      <button class="toggle-btn active" id="btn-sun">太阳</button>
+      <button class="toggle-btn active" id="btn-moon">月球</button>
+      <button class="toggle-btn active" id="btn-white-path">白道</button>
+      <button class="toggle-btn" id="btn-dec-circle">赤纬圈</button>
+      <button class="toggle-btn" id="btn-sun-lat">☀ 直射纬线</button>
+    </div>
+    <div class="toggle-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:6px;">
+      <button class="toggle-btn accent2" id="btn-play">▶ 播放</button>
+      <button class="toggle-btn" id="btn-rot-mode">🌍 地球自转</button>
+    </div>
+    <div class="ctrl-group">
+      <label>转速 <span class="val" id="speed-val">0.5°/帧</span></label>
+      <input type="range" id="slider-speed" min="0.1" max="10" step="0.1" value="0.5">
+    </div>
+    <div style="display:flex;gap:6px;margin-top:4px;">
+      <button class="toggle-btn accent2" id="btn-mark-dec" style="flex:2;">➕ 标记赤纬</button>
+      <button class="toggle-btn" id="btn-clear-marks" style="flex:1;">清除</button>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">
+      <label style="font-size:11px;font-weight:500;color:#aaa;display:flex;justify-content:space-between;margin-bottom:2px;">
+        地面标记点 <span style="color:#888;">点击地球或输入坐标</span>
+      </label>
+      <div style="display:flex;gap:4px;margin:4px 0;">
+        <input id="input-lat" type="number" min="-90" max="90" step="0.1" value="39.9" placeholder="纬度"
+          style="flex:1;background:#1a1a3a;border:1px solid #333;border-radius:4px;color:#fff;padding:4px 6px;font-size:10px;width:0;">
+        <input id="input-lng" type="number" min="-180" max="180" step="0.1" value="116.4" placeholder="经度"
+          style="flex:1;background:#1a1a3a;border:1px solid #333;border-radius:4px;color:#fff;padding:4px 6px;font-size:10px;width:0;">
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="toggle-btn accent2" id="btn-add-marker" style="flex:2;">➕ 添加标记</button>
+        <button class="toggle-btn active" id="btn-horizon" style="flex:1;">🌅 地平</button>
+        <button class="toggle-btn" id="btn-clear-markers" style="flex:1;">清除</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+        <span style="font-size:10px;color:#888;min-width:32px;">透明度</span>
+        <input type="range" id="slider-horizon-opacity" min="0" max="1" step="0.05" value="0.30"
+          style="flex:1;height:3px;">
+        <span class="val" id="horizon-opacity-val" style="font-size:10px;min-width:24px;">0.30</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <!-- 天球倾斜面板 -->
+  <div id="tilt-panel">
+    <button id="tilt-panel-toggle">▾</button>
+    <h4>天球倾斜</h4>
+    <div id="tilt-panel-body">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:#888;width:14px;">X</span>
+          <input type="range" id="slider-tilt-x" min="-90" max="90" step="0.5" value="0" style="flex:1;">
+          <span class="val" id="tilt-x-val" style="font-size:11px;min-width:36px;">0°</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:#888;width:14px;">Y</span>
+          <input type="range" id="slider-tilt-y" min="-90" max="90" step="0.5" value="0" style="flex:1;">
+          <span class="val" id="tilt-y-val" style="font-size:11px;min-width:36px;">0°</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:#888;width:14px;">Z</span>
+          <input type="range" id="slider-tilt-z" min="-90" max="90" step="0.5" value="0" style="flex:1;">
+          <span class="val" id="tilt-z-val" style="font-size:11px;min-width:36px;">0°</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 月球数据面板 -->
+  <div id="moon-panel">
+    <button id="moon-panel-toggle">▾</button>
+    <h4>🌙 月球数据</h4>
+    <div id="moon-panel-body">
+      <div style="text-align:center;font-size:13px;font-weight:600;color:#fff;" id="moon-lunar-date">——</div>
+      <div style="text-align:center;font-size:11px;color:var(--accent2);" id="moon-phase-name">——</div>
+      <div id="moon-phase-3d" style="width:120px;height:120px;margin:4px auto;cursor:grab;position:relative;">
+        <span style="position:absolute;left:2px;top:50%;transform:translateY(-50%);font-size:10px;color:rgba(200,210,240,0.6);pointer-events:none;">东</span>
+        <span style="position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:10px;color:rgba(200,210,240,0.6);pointer-events:none;">西</span>
+      </div>
+      <div style="font-size:11px;color:#c8d0e0;line-height:1.6;padding:2px 4px;" id="moon-phase-info">
+        <div id="moon-rise-set">——</div>
+        <div id="moon-appearance">——</div>
+        <div id="moon-position">——</div>
+      </div>
+      <div class="ctrl-group">
+        <label>月球大小 <span class="val" id="moon-size-val">0.60</span></label>
+        <input type="range" id="slider-moon-size" min="0.1" max="2.0" step="0.05" value="0.60">
+      </div>
+    </div>
+  </div>
+  <div id="info-bar">
+    太阳赤纬 <span id="info-dec">+23.4°</span> · 直射点纬度 <span id="info-lat">23.4°N</span>
+  </div>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ==================== CONSTANTS ====================
+    let EARTH_RADIUS = 4;
+    const CELESTIAL_RADIUS = 20;
+    const OBLIQUITY = 23.44 * Math.PI / 180; // 黄赤交角
+
+    // ==================== DOM REFS ====================
+    const container = document.getElementById('canvas-container');
+    const sliderDec = document.getElementById('slider-dec');
+    const sliderRot = document.getElementById('slider-rot');
+    const sliderDist = document.getElementById('slider-dist');
+    const sliderRadius = document.getElementById('slider-radius');
+    const radiusVal = document.getElementById('radius-val');
+    const decVal = document.getElementById('dec-val');
+    const rotVal = document.getElementById('rot-val');
+    const distVal = document.getElementById('dist-val');
+    const infoDec = document.getElementById('info-dec');
+    const infoLat = document.getElementById('info-lat');
+    const dateDisplay = document.getElementById('date-display');
+    const sliderSpeed = document.getElementById('slider-speed');
+    const speedVal = document.getElementById('speed-val');
+    const sliderTiltX = document.getElementById('slider-tilt-x');
+    const sliderTiltY = document.getElementById('slider-tilt-y');
+    const sliderTiltZ = document.getElementById('slider-tilt-z');
+    const tiltXVal = document.getElementById('tilt-x-val');
+    const tiltYVal = document.getElementById('tilt-y-val');
+    const tiltZVal = document.getElementById('tilt-z-val');
+
+    // ==================== SCENE SETUP ====================
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // 启用局部裁剪，让 Three.js 自动将裁剪平面从物体局部空间变换到世界空间
+    renderer.localClippingEnabled = true;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050510);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(20, 15, 43);
+    camera.lookAt(0, 0, 0);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.12;
+    controls.minDistance = 4;
+    controls.maxDistance = 120;
+    controls.update();
+
+    // 缩放时同步视图距离滑块
+    controls.addEventListener('change', () => {
+      const dist = camera.position.length();
+      sliderDist.value = dist;
+      distVal.textContent = dist.toFixed(1);
+    });
+
+    // ==================== LIGHTING ====================
+    const ambient = new THREE.AmbientLight(0x334466, 0.8);
+    scene.add(ambient);
+    const hemi = new THREE.HemisphereLight(0x6688aa, 0x332211, 0.4);
+    scene.add(hemi);
+
+    // 太阳光：挂在 earthRotateGroup 下（需在 earthRotateGroup 创建后添加）
+    const sunLight = new THREE.DirectionalLight(0xfff0d0, 8.0);
+    const sunLightTarget = new THREE.Object3D();
+    sunLightTarget.position.set(0, 0, 0);
+    sunLight.target = sunLightTarget;
+
+    // ==================== EARTH GROUP ====================
+    // 天球模型中：地球赤道 = 天赤道，地轴 = 天轴
+    // 天赤道水平放置，地轴竖直，地球无额外倾斜
+
+    // 倾斜控制分组——整体倾斜天球与地球系统
+    const tiltGroup = new THREE.Group();
+    scene.add(tiltGroup);
+
+    const earthSystem = new THREE.Group();
+    // 地轴竖直：不添加倾斜（天球参考系中天赤道为基准面）
+    tiltGroup.add(earthSystem);
+
+    // 地球自转分组（内部旋转实现自转）
+    const earthRotateGroup = new THREE.Group();
+    earthSystem.add(earthRotateGroup);
+    // 太阳光直接挂在场景下，方向固定指向地心，使地球自转时亮面随太阳方向变化
+    scene.add(sunLight);
+    scene.add(sunLightTarget);
+
+    // 地球纹理加载
+    const textureLoader = new THREE.TextureLoader();
+    let earthTexture = null;
+    let texLoaded = false;
+
+    // 地球球体
+    const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 48);
+    const earthMat = new THREE.MeshStandardMaterial({
+      color: 0x4a90d9,
+      roughness: 0.7,
+      metalness: 0.1,
+      map: null
+    });
+    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    earthMesh.castShadow = true;
+    earthMesh.receiveShadow = true;
+    earthRotateGroup.add(earthMesh);
+
+    textureLoader.load(
+      'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+      (tex) => {
+        tex.minFilter = THREE.LinearFilter;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        earthTexture = tex;
+        texLoaded = true;
+        if (showTexture) {
+          earthMat.map = earthTexture;
+          earthMat.color.set(0xffffff);
+          earthMat.needsUpdate = true;
+        }
+      },
+      undefined,
+      () => {
+        // 备用纹理
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#4a90d9'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#5a9a5a';
+        ctx.beginPath(); ctx.ellipse(180, 150, 80, 120, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(220, 350, 60, 80, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(520, 120, 60, 40, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(550, 280, 70, 110, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(700, 170, 120, 100, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(820, 360, 40, 50, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#dddde8';
+        ctx.beginPath(); ctx.ellipse(512, 480, 400, 50, 0, 0, Math.PI*2); ctx.fill();
+        earthTexture = new THREE.CanvasTexture(canvas);
+        earthTexture.minFilter = THREE.LinearFilter;
+        earthTexture.wrapS = THREE.RepeatWrapping;
+        earthTexture.wrapT = THREE.RepeatWrapping;
+        texLoaded = true;
+        if (showTexture) {
+          earthMat.map = earthTexture;
+          earthMat.color.set(0xffffff);
+          earthMat.needsUpdate = true;
+        }
+      }
+    );
+
+    // ==================== 经纬网格 ====================
+    const gridGroup = new THREE.Group();
+    earthRotateGroup.add(gridGroup);
+
+    function buildGrid() {
+      // 纬线
+      for (let lat = -75; lat <= 75; lat += 15) {
+        const latRad = lat * Math.PI / 180;
+        const r = EARTH_RADIUS * Math.cos(latRad);
+        const y = EARTH_RADIUS * Math.sin(latRad);
+        const pts = [];
+        for (let i = 0; i <= 64; i++) {
+          const a = (i / 64) * 2 * Math.PI;
+          pts.push(new THREE.Vector3(r * Math.cos(a), y, r * Math.sin(a)));
+        }
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const mat = new THREE.LineBasicMaterial({ color: 0x3a7abb, transparent: true, opacity: 0.5 });
+        const line = new THREE.Line(geo, mat);
+        gridGroup.add(line);
+      }
+      // 经线
+      for (let lon = 0; lon < 360; lon += 15) {
+        const lonRad = lon * Math.PI / 180;
+        const pts = [];
+        for (let i = 0; i <= 64; i++) {
+          const latRad = (i / 64) * Math.PI - Math.PI / 2;
+          pts.push(new THREE.Vector3(
+            EARTH_RADIUS * Math.cos(latRad) * Math.sin(lonRad),
+            EARTH_RADIUS * Math.sin(latRad),
+            EARTH_RADIUS * Math.cos(latRad) * Math.cos(lonRad)
+          ));
+        }
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const mat = new THREE.LineBasicMaterial({ color: 0x3a7abb, transparent: true, opacity: 0.5 });
+        const line = new THREE.Line(geo, mat);
+        gridGroup.add(line);
+      }
+      // 赤道（加粗）
+      const eqPts = [];
+      for (let i = 0; i <= 72; i++) {
+        const a = (i / 72) * 2 * Math.PI;
+        eqPts.push(new THREE.Vector3(EARTH_RADIUS * Math.cos(a), 0, EARTH_RADIUS * Math.sin(a)));
+      }
+      const eqGeo = new THREE.BufferGeometry().setFromPoints(eqPts);
+      const eqMat = new THREE.LineBasicMaterial({ color: 0x66bbff, transparent: true, opacity: 0.8 });
+      const eqLine = new THREE.Line(eqGeo, eqMat);
+      gridGroup.add(eqLine);
+    }
+    buildGrid();
+
+    // ==================== 地轴 ====================
+    const axisGroup = new THREE.Group();
+    earthSystem.add(axisGroup);
+
+    function buildAxis() {
+      const axisLen = EARTH_RADIUS * 2.2;
+      // 地轴杆
+      const cylGeo = new THREE.CylinderGeometry(0.04, 0.04, axisLen * 2, 12);
+      const cylMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.5, metalness: 0.3 });
+      const cyl = new THREE.Mesh(cylGeo, cylMat);
+      axisGroup.add(cyl);
+      // 北极端点
+      const nGeo = new THREE.SphereGeometry(0.1, 12, 12);
+      const nMat = new THREE.MeshStandardMaterial({ color: 0xff6666, emissive: 0xff4444, emissiveIntensity: 0.3 });
+      const nPole = new THREE.Mesh(nGeo, nMat);
+      nPole.position.y = axisLen;
+      axisGroup.add(nPole);
+      // 南极端点
+      const sMat = new THREE.MeshStandardMaterial({ color: 0x6666ff, emissive: 0x4444ff, emissiveIntensity: 0.3 });
+      const sPole = new THREE.Mesh(nGeo.clone(), sMat);
+      sPole.position.y = -axisLen;
+      axisGroup.add(sPole);
+      // 北极星标签
+      const labelCanvas = document.createElement('canvas');
+      labelCanvas.width = 256; labelCanvas.height = 64;
+      const lctx = labelCanvas.getContext('2d');
+      lctx.fillStyle = '#ff8888';
+      lctx.font = 'bold 32px sans-serif';
+      lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
+      lctx.fillText('北极星', 128, 32);
+      const labelTex = new THREE.CanvasTexture(labelCanvas);
+      const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
+      const labelSprite = new THREE.Sprite(labelMat);
+      labelSprite.position.set(0, axisLen + 0.6, 0);
+      labelSprite.scale.set(1.6, 0.4, 1);
+      axisGroup.add(labelSprite);
+    }
+    buildAxis();
+
+    // ==================== 太阳直射点 ====================
+    const sunPointMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1, 12, 12),
+      new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: 0xff4400, emissiveIntensity: 1.0 })
+    );
+    earthSystem.add(sunPointMesh);
+
+    // 直射点所在纬线
+    let showSunLat = false;
+    const sunLatGroup = new THREE.Group();
+    earthRotateGroup.add(sunLatGroup);
+
+    function buildSunLatLine(declinationDeg) {
+      // 清除旧的
+      while (sunLatGroup.children.length) {
+        const c = sunLatGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        sunLatGroup.remove(c);
+      }
+      const lat = declinationDeg * Math.PI / 180;
+      const r = EARTH_RADIUS * 1.005;
+      const ringRadius = r * Math.cos(lat);
+      const y = r * Math.sin(lat);
+      const segments = 64;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * 2 * Math.PI;
+        pts.push(new THREE.Vector3(
+          ringRadius * Math.cos(theta),
+          y,
+          ringRadius * Math.sin(theta)
+        ));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.8 });
+      const line = new THREE.Line(geo, mat);
+      line.renderOrder = 300;
+      sunLatGroup.add(line);
+
+      // 一个小标记文本 Sprite
+      const labelTex = createLabel('直射纬线', '#ff6600', 24);
+      const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false, depthWrite: false });
+      const labelSpr = new THREE.Sprite(labelMat);
+      labelSpr.position.set(ringRadius + 0.3, y, 0);
+      labelSpr.scale.set(1.4, 0.4, 1);
+      labelSpr.renderOrder = 999;
+      sunLatGroup.add(labelSpr);
+
+      sunLatGroup.visible = showSunLat;
+    }
+    buildSunLatLine(0); // 初始赤纬0°
+
+    // ==================== 天球 ====================
+    const celestialGroup = new THREE.Group();
+    tiltGroup.add(celestialGroup);
+
+    // 天球球面（半透明蓝色背景）
+    const skyGeo = new THREE.SphereGeometry(CELESTIAL_RADIUS - 0.1, 64, 48);
+    const skyMat = new THREE.MeshBasicMaterial({
+      color: 0x1a3a6a,
+      transparent: true,
+      opacity: 0.15,
+      side: THREE.BackSide,
+      depthWrite: false
+    });
+    const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    celestialGroup.add(skyMesh);
+
+    // ==================== 星空 ====================
+    const starGroup = new THREE.Group();
+    celestialGroup.add(starGroup);
+
+    function buildStars() {
+      const starCount = 1500;
+      const positions = new Float32Array(starCount * 3);
+      const colors = new Float32Array(starCount * 3);
+      const sizes = new Float32Array(starCount);
+      const alphas = new Float32Array(starCount);
+      for (let i = 0; i < starCount; i++) {
+        const theta = Math.acos(2 * Math.random() - 1);
+        const phi = Math.random() * 2 * Math.PI;
+        const r = CELESTIAL_RADIUS + (Math.random() - 0.5) * 0.3;
+        positions[i*3] = r * Math.sin(theta) * Math.cos(phi);
+        positions[i*3+1] = r * Math.cos(theta);
+        positions[i*3+2] = r * Math.sin(theta) * Math.sin(phi);
+        // 随机颜色（白、淡蓝、淡黄）
+        const c = 0.5 + Math.random() * 0.5;
+        const tint = Math.random();
+        if (tint < 0.05) { colors[i*3] = c; colors[i*3+1] = c*0.8; colors[i*3+2] = c*0.6; }
+        else if (tint < 0.1) { colors[i*3] = c*0.7; colors[i*3+1] = c*0.8; colors[i*3+2] = c; }
+        else { colors[i*3] = c; colors[i*3+1] = c; colors[i*3+2] = c; }
+        sizes[i] = 2.0 + Math.random() * 6.0;
+        alphas[i] = 0.5 + Math.random() * 0.5;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+      geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+      geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+
+      // 使用自定义 ShaderMaterial 实现背面星星淡化
+      const starMat = new THREE.ShaderMaterial({
+        uniforms: {},
+        defines: {
+          PIXEL_RATIO: renderer.getPixelRatio().toFixed(1)
+        },
+        vertexShader: `
+          attribute float aSize;
+          attribute vec3 aColor;
+          attribute float aAlpha;
+          varying vec3 vColor;
+          varying float vAlpha;
+
+          void main() {
+            vColor = aColor;
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vec3 viewDir = normalize(cameraPosition - worldPos.xyz);
+            vec3 normal = normalize(worldPos.xyz);
+            // 背对相机的一面（远离相机方向）透明度降低
+            float facing = dot(viewDir, normal);
+            vAlpha = aAlpha * mix(0.12, 1.0, max(0.0, facing));
+            vec4 mvPosition = viewMatrix * worldPos;
+            gl_PointSize = aSize * PIXEL_RATIO * (200.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          varying float vAlpha;
+
+          void main() {
+            float d = length(gl_PointCoord - vec2(0.5));
+            if (d > 0.5) discard;
+            float alpha = smoothstep(0.5, 0.0, d) * vAlpha;
+            gl_FragColor = vec4(vColor, alpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const stars = new THREE.Points(geo, starMat);
+      stars.renderOrder = 500;
+      starGroup.add(stars);
+
+      // 保存引用用于 animate 中更新相机位置
+      window._starMat = starMat;
+    }
+    buildStars();
+
+    // ==================== 文字标签工具 ====================
+    function createLabel(text, color, fontSize) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = color || '#ffffff';
+      ctx.font = 'bold ' + (fontSize || 36) + 'px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 8;
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // ==================== 背面淡化工具 ====================
+    // 使用 Three.js 内置 cameraPosition 实现，无需每帧手动更新
+    const fadeMaterials = [];
+
+    // 创建带背面淡化的线段（基于球心径向方向判定背面）
+    function createFadingLine(points, color, baseOpacity, isSpecial) {
+      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      const col = new THREE.Color(color);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: col },
+          uOpacity: { value: baseOpacity }
+        },
+        vertexShader: `
+          varying float vAlpha;
+          void main() {
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vec3 vDir = normalize(cameraPosition - worldPos.xyz);
+            // 球心径向：天球背面 vDir·norm < 0 时重度淡化
+            vec3 norm = normalize(worldPos.xyz);
+            float facing = dot(vDir, norm);
+            vAlpha = mix(0.02, 1.0, max(0.0, facing));
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vAlpha;
+          void main() {
+            gl_FragColor = vec4(uColor, uOpacity * vAlpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false
+      });
+      fadeMaterials.push(mat);
+      const line = new THREE.Line(geo, mat);
+      line.renderOrder = 500;
+      return line;
+    }
+
+    // 创建带背面淡化的粗管（基于球心径向方向判定背面）
+    function createFadingTubeLine(points, color, baseOpacity, tubeRadius) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const geo = new THREE.TubeGeometry(curve, points.length * 2, tubeRadius || 0.06, 6, false);
+      const col = new THREE.Color(color);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: col },
+          uOpacity: { value: baseOpacity }
+        },
+        vertexShader: `
+          varying float vAlpha;
+          void main() {
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vec3 vDir = normalize(cameraPosition - worldPos.xyz);
+            // 用球心径向方向而非管面法线，正确检测天球背面
+            vec3 norm = normalize(worldPos.xyz);
+            float facing = dot(vDir, norm);
+            vAlpha = mix(0.02, 1.0, max(0.0, facing));
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vAlpha;
+          void main() {
+            gl_FragColor = vec4(uColor, uOpacity * vAlpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false
+      });
+      fadeMaterials.push(mat);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 510;
+      return mesh;
+    }
+
+    // 创建带背面淡化的圆环（天赤道用，基于球心径向方向）
+    function createFadingTorus(radius, tube, color, baseOpacity, radialSeg, tubularSeg) {
+      const geo = new THREE.TorusGeometry(radius, tube, radialSeg || 16, tubularSeg || 120);
+      const col = new THREE.Color(color);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: col },
+          uOpacity: { value: baseOpacity }
+        },
+        vertexShader: `
+          varying float vAlpha;
+          void main() {
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vec3 vDir = normalize(cameraPosition - worldPos.xyz);
+            // 用球心径向方向，统一判定背面
+            vec3 norm = normalize(worldPos.xyz);
+            float facing = dot(vDir, norm);
+            vAlpha = mix(0.03, 1.0, max(0.0, facing));
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vAlpha;
+          void main() {
+            gl_FragColor = vec4(uColor, uOpacity * vAlpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false
+      });
+      fadeMaterials.push(mat);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 550;
+      return mesh;
+    }
+
+    // ==================== 正交相机（正射投影） ====================
+    let useOrtho = true;
+    const orthoCamera = new THREE.OrthographicCamera(-10, 10, 7.5, -7.5, 0.1, 200);
+    orthoCamera.position.copy(camera.position);
+    orthoCamera.lookAt(0, 0, 0);
+
+    function syncOrthoCamera() {
+      const dist = camera.position.length();
+      const aspect = window.innerWidth / window.innerHeight;
+      const viewSize = dist * 0.35;
+      if (aspect > 1) {
+        orthoCamera.left = -viewSize * aspect;
+        orthoCamera.right = viewSize * aspect;
+        orthoCamera.top = viewSize;
+        orthoCamera.bottom = -viewSize;
+      } else {
+        orthoCamera.left = -viewSize;
+        orthoCamera.right = viewSize;
+        orthoCamera.top = viewSize / aspect;
+        orthoCamera.bottom = -viewSize / aspect;
+      }
+      orthoCamera.position.copy(camera.position);
+      orthoCamera.quaternion.copy(camera.quaternion);
+      orthoCamera.updateProjectionMatrix();
+    }
+
+    // ==================== 天赤道（加粗高亮 + 背面淡化） ====================
+    const cequatorGroup = new THREE.Group();
+    celestialGroup.add(cequatorGroup);
+    {
+      // 主环 — 背面淡化版本
+      const torus = createFadingTorus(CELESTIAL_RADIUS, 0.06, 0x4dabf7, 1.0);
+      torus.rotation.x = Math.PI / 2;
+      cequatorGroup.add(torus);
+      // 外发光环（固定透明度，不随视角变化）
+      const glowTorus = new THREE.Mesh(
+        new THREE.TorusGeometry(CELESTIAL_RADIUS, 0.18, 16, 120),
+        new THREE.MeshBasicMaterial({ color: 0x4dabf7, transparent: true, opacity: 0.12, depthWrite: false })
+      );
+      glowTorus.rotation.x = Math.PI / 2;
+      cequatorGroup.add(glowTorus);
+      // 标注 "天赤道"
+      const label = createLabel('天赤道', '#4dabf7', 40);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: label, transparent: true, depthTest: false, depthWrite: false
+      }));
+      sprite.position.set(CELESTIAL_RADIUS * 0.7, 1.6, 0);
+      sprite.scale.set(3.0, 0.7, 1);
+      sprite.renderOrder = 999;
+      cequatorGroup.add(sprite);
+    }
+
+    // ==================== 黄道 ====================
+    const eclipticGroup = new THREE.Group();
+    // 黄道相对于天赤道倾斜 23.44°
+    eclipticGroup.rotation.x = OBLIQUITY;
+    celestialGroup.add(eclipticGroup);
+    {
+      const pts = [];
+      for (let i = 0; i <= 120; i++) {
+        const a = (i / 120) * 2 * Math.PI;
+        pts.push(new THREE.Vector3(CELESTIAL_RADIUS * Math.cos(a), 0, CELESTIAL_RADIUS * Math.sin(a)));
+      }
+      // 黄道加粗管
+      const line = createFadingTubeLine(pts, 0xfab005, 0.9, 0.07);
+      eclipticGroup.add(line);
+
+      // 黄道十二宫标记点 + 名称标签
+      const zodiacNames = ['白羊座','金牛座','双子座','巨蟹座','狮子座','室女座','天秤座','天蝎座','人马座','摩羯座','宝瓶座','双鱼座'];
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * 2 * Math.PI;
+        const px = CELESTIAL_RADIUS * Math.cos(a);
+        const pz = CELESTIAL_RADIUS * Math.sin(a);
+
+        // 标记点
+        const dotGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0xfab005 });
+        const dot = new THREE.Mesh(dotGeo, dotMat);
+        dot.position.set(px, 0, pz);
+        eclipticGroup.add(dot);
+
+        // 名称标签（使用 Sprite，不受背面淡化影响）
+        const labelTex = createLabel(zodiacNames[i], '#facc15', 128);
+        const labelMat = new THREE.SpriteMaterial({
+          map: labelTex, transparent: true, depthTest: false, depthWrite: false
+        });
+        const label = new THREE.Sprite(labelMat);
+        label.position.set(px * 1.08, 0.5, pz * 1.08);
+        label.scale.set(1.8, 0.45, 1);
+        label.renderOrder = 999;
+        eclipticGroup.add(label);
+      }
+    }
+
+    // ==================== 天球经纬网格 + 天经天纬标注 ====================
+    const cgridGroup = new THREE.Group();
+    celestialGroup.add(cgridGroup);
+    // 标注标签单独分组，便于通过"天球网格"按钮统一控制
+    const clabelGroup = new THREE.Group();
+    cgridGroup.add(clabelGroup);
+
+    function makeLabelSprite(text, color, fontSize) {
+      const tex = createLabel(text, color, fontSize);
+      const mat = new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthTest: false, depthWrite: false
+      });
+      const sprite = new THREE.Sprite(mat);
+      sprite.renderOrder = 998;
+      return sprite;
+    }
+
+    function buildCelestialGrid() {
+      // ---- 天纬（赤纬）圈 ----
+      for (let dec = -85; dec <= 85; dec += 5) {
+        const decRad = dec * Math.PI / 180;
+        const r = CELESTIAL_RADIUS * Math.cos(decRad);
+        const y = CELESTIAL_RADIUS * Math.sin(decRad);
+        const pts = [];
+        for (let i = 0; i <= 72; i++) {
+          const a = (i / 72) * 2 * Math.PI;
+          pts.push(new THREE.Vector3(r * Math.cos(a), y, r * Math.sin(a)));
+        }
+        const isThick = Math.abs(dec) % 30 === 0;
+        const isMid = Math.abs(dec) % 15 === 0;
+        if (isThick) {
+          // 30°倍数纬圈用粗管
+          const line = createFadingTubeLine(pts, 0x88bbee, 0.55, 0.05);
+          cgridGroup.add(line);
+        } else if (isMid) {
+          // 15°倍数纬圈用中等粗管
+          const line = createFadingTubeLine(pts, 0x6688aa, 0.35, 0.03);
+          cgridGroup.add(line);
+        } else {
+          // 5°普通纬圈用细线
+          const line = createFadingLine(pts, 0x556688, 0.20);
+          cgridGroup.add(line);
+        }
+
+        // 天纬标注（仅对30°倍数纬圈加标）
+        if (isThick && dec !== 0) {
+          const labelText = (dec > 0 ? '' : '') + Math.abs(dec) + '°' + (dec >= 0 ? 'N' : 'S');
+          const sprite = makeLabelSprite(labelText, '#88bbee', 28);
+          sprite.position.set(r + 0.6, y, 0);
+          sprite.scale.set(1.8, 0.45, 1);
+          clabelGroup.add(sprite);
+        }
+      }
+
+      // ---- 天经（时角 / 赤经）圈 ----
+      for (let ha = 0; ha < 360; ha += 5) {
+        const haRad = ha * Math.PI / 180;
+        const pts = [];
+        for (let i = 0; i <= 72; i++) {
+          const latRad = (i / 72) * Math.PI - Math.PI / 2;
+          pts.push(new THREE.Vector3(
+            CELESTIAL_RADIUS * Math.cos(latRad) * Math.sin(haRad),
+            CELESTIAL_RADIUS * Math.sin(latRad),
+            CELESTIAL_RADIUS * Math.cos(latRad) * Math.cos(haRad)
+          ));
+        }
+        const isThick = ha % 30 === 0;
+        const isMid = ha % 15 === 0;
+        if (isThick) {
+          const line = createFadingTubeLine(pts, 0x88bbee, 0.55, 0.05);
+          cgridGroup.add(line);
+        } else if (isMid) {
+          const line = createFadingTubeLine(pts, 0x6688aa, 0.35, 0.03);
+          cgridGroup.add(line);
+        } else {
+          const line = createFadingLine(pts, 0x556688, 0.20);
+          cgridGroup.add(line);
+        }
+      }
+
+      // ---- 天经标注（在天赤道位置上标时角 / 赤经） ----
+      const raLabels = [
+        { h: 0, label: '0h' }, { h: 2, label: '2h' }, { h: 4, label: '4h' },
+        { h: 6, label: '6h' }, { h: 8, label: '8h' }, { h: 10, label: '10h' },
+        { h: 12, label: '12h' }, { h: 14, label: '14h' }, { h: 16, label: '16h' },
+        { h: 18, label: '18h' }, { h: 20, label: '20h' }, { h: 22, label: '22h' }
+      ];
+      // 也标注度数
+      const degLabels = [
+        { d: 0, label: '0°' }, { d: 30, label: '30°' }, { d: 60, label: '60°' },
+        { d: 90, label: '90°' }, { d: 120, label: '120°' }, { d: 150, label: '150°' },
+        { d: 180, label: '180°' }, { d: 210, label: '210°' }, { d: 240, label: '240°' },
+        { d: 270, label: '270°' }, { d: 300, label: '300°' }, { d: 330, label: '330°' }
+      ];
+      const rEq = CELESTIAL_RADIUS + 0.5;
+      raLabels.forEach(item => {
+        const angle = (item.h / 24) * 2 * Math.PI - Math.PI / 2;
+        const sprite = makeLabelSprite(item.label, '#88bbee', 26);
+        sprite.position.set(rEq * Math.cos(angle), 0.6, rEq * Math.sin(angle));
+        sprite.scale.set(1.6, 0.4, 1);
+        clabelGroup.add(sprite);
+      });
+    }
+    buildCelestialGrid();
+
+    // ==================== 太阳 ====================
+    const sunGroup = new THREE.Group();
+    celestialGroup.add(sunGroup);
+
+    // 太阳发光球体
+    const sunGlowCanvas = document.createElement('canvas');
+    sunGlowCanvas.width = 128; sunGlowCanvas.height = 128;
+    const sgCtx = sunGlowCanvas.getContext('2d');
+    const grad = sgCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,180,50,1)');
+    grad.addColorStop(0.15, 'rgba(255,160,40,0.8)');
+    grad.addColorStop(0.4, 'rgba(255,120,20,0.3)');
+    grad.addColorStop(0.7, 'rgba(200,80,0,0.05)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    sgCtx.fillStyle = grad;
+    sgCtx.fillRect(0, 0, 128, 128);
+    const sunGlowTex = new THREE.CanvasTexture(sunGlowCanvas);
+
+    const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: sunGlowTex, blending: THREE.AdditiveBlending,
+      depthTest: true, depthWrite: false, transparent: true
+    }));
+    sunSprite.scale.set(8.0, 8.0, 1);
+    sunGroup.add(sunSprite);
+
+    const sunCore = new THREE.Mesh(
+      new THREE.SphereGeometry(0.8, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xff9900 })
+    );
+    sunGroup.add(sunCore);
+
+    // ==================== 太阳赤纬圈 ====================
+    const sunDecGroup = new THREE.Group();
+    celestialGroup.add(sunDecGroup);
+    sunDecGroup.visible = false; // 默认隐藏
+
+    // 赤纬圈裁剪平面（地平面以下不显示）
+    const decClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+    function updateDecClipPlane() {
+      if (!showHorizon || !opaqueSphereZenith) {
+        // 不显示地平面时不裁剪
+        decClipPlane.normal.set(0, 0, 0);
+        decClipPlane.constant = 0;
+        return;
+      }
+      // 计算世界空间中的地平线平面：p · worldZenith >= EARTH_RADIUS
+      const worldZenith = opaqueSphereZenith.clone()
+        .applyQuaternion(earthRotateGroup.quaternion)
+        .applyQuaternion(tiltGroup.quaternion);
+      decClipPlane.normal.copy(worldZenith);
+      decClipPlane.constant = -EARTH_RADIUS;
+    }
+
+    function updateSunDecCircle(decDeg) {
+      // 清除旧的赤纬圈
+      while (sunDecGroup.children.length) {
+        const c = sunDecGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        sunDecGroup.remove(c);
+      }
+
+      // 在天球上画一条赤纬 = decDeg 的纬线
+      const decRad = decDeg * Math.PI / 180;
+      const r = CELESTIAL_RADIUS * Math.cos(decRad);
+      const y = CELESTIAL_RADIUS * Math.sin(decRad);
+      const pts = [];
+      for (let i = 0; i <= 72; i++) {
+        const a = (i / 72) * 2 * Math.PI;
+        pts.push(new THREE.Vector3(r * Math.cos(a), y, r * Math.sin(a)));
+      }
+      // 使用加粗橙色管，全角度可见（不加背面淡化）
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tubeGeo = new THREE.TubeGeometry(curve, pts.length * 2, 0.05, 6, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0xff6600,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+        clippingPlanes: [decClipPlane]
+      });
+      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      tube.renderOrder = 510;
+      sunDecGroup.add(tube);
+
+      // 在赤纬圈上添加小标记点（在黄经方向）
+      // 找到太阳在黄道上的黄经，然后在此经度处加一个亮点
+      // 但简单起见，每 45° 加一个标记点
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * 2 * Math.PI;
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 6, 6),
+          new THREE.MeshBasicMaterial({ color: 0xff6600, clippingPlanes: [decClipPlane] })
+        );
+        dot.position.set(r * Math.cos(a), y, r * Math.sin(a));
+        dot.renderOrder = 998;
+        sunDecGroup.add(dot);
+      }
+    }
+
+    // ==================== 月球和白道 ====================
+    const moonGroup = new THREE.Group();
+    celestialGroup.add(moonGroup);
+
+    // 月球球体（使用 Phong 材质以响应太阳光，显示昼夜半球）
+    const moonSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 20, 20),//月球大小
+      new THREE.MeshPhongMaterial({
+        color: 0xdddddd,
+        emissive: 0x222222,
+        emissiveIntensity: 0.05,
+        shininess: 5
+      })
+    );
+    moonGroup.add(moonSphere);
+
+    // 月球发光光晕
+    const moonGlowCanvas = document.createElement('canvas');
+    moonGlowCanvas.width = 64; moonGlowCanvas.height = 64;
+    const mgCtx = moonGlowCanvas.getContext('2d');
+    const mgGrad = mgCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    mgGrad.addColorStop(0, 'rgba(200,200,210,0.4)');
+    mgGrad.addColorStop(0.3, 'rgba(180,180,200,0.15)');
+    mgGrad.addColorStop(0.6, 'rgba(160,160,180,0.05)');
+    mgGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    mgCtx.fillStyle = mgGrad;
+    mgCtx.fillRect(0, 0, 64, 64);
+    const moonGlowTex = new THREE.CanvasTexture(moonGlowCanvas);
+    const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: moonGlowTex, blending: THREE.AdditiveBlending,
+      depthTest: true, depthWrite: false, transparent: true
+    }));
+    moonGlow.scale.set(2.5, 2.5, 1);
+    moonGroup.add(moonGlow);
+
+    // 月球标签（名称）
+    const moonLabelTex = createLabel('月球', '#88ccff', 28);
+    const moonLabelMat = new THREE.SpriteMaterial({
+      map: moonLabelTex, transparent: true, depthTest: false, depthWrite: false
+    });
+    const moonLabel = new THREE.Sprite(moonLabelMat);
+    moonLabel.scale.set(1.2, 0.35, 1);
+    moonLabel.renderOrder = 999;
+    moonGroup.add(moonLabel);
+
+    // 白道（月球轨道在天球上的投影）
+    const whitePathGroup = new THREE.Group();
+    celestialGroup.add(whitePathGroup);
+
+    const WHITE_PATH_INCL = 5.15 * Math.PI / 180; // 白道面与黄道面夹角 ~5.15°
+
+    // 获取月球升交点黄经（度），基于日期
+    function getMoonNodeLon(date) {
+      const jd = date.getTime() / 86400000 + 2440587.5;
+      const d = jd - 2451545.0;
+      let Omega = 125.045 - 0.0529538 * d;
+      return ((Omega % 360) + 360) % 360;
+    }
+
+    // 计算白道上某黄经处的3D位置
+    function getWhitePathPoint(eclLonDeg, nodeLonDeg) {
+      const nodeLon = nodeLonDeg * Math.PI / 180;
+      const obl = OBLIQUITY;
+      const lonRad = eclLonDeg * Math.PI / 180;
+      // 白道上该黄经对应的theta（从升交点起算的角度）
+      const theta = lonRad - nodeLon;
+      const x = Math.cos(theta);
+      const y = Math.sin(theta) * Math.sin(WHITE_PATH_INCL);
+      const z = -Math.sin(theta) * Math.cos(WHITE_PATH_INCL);
+      // 绕Y轴旋转到升交点方向
+      const rx = x * Math.cos(nodeLon) - z * Math.sin(nodeLon);
+      const rz = x * Math.sin(nodeLon) + z * Math.cos(nodeLon);
+      // 绕X轴旋转黄赤交角（黄道→天球）
+      const ry = y * Math.cos(obl) - rz * Math.sin(obl);
+      const rz2 = y * Math.sin(obl) + rz * Math.cos(obl);
+      return new THREE.Vector3(rx * CELESTIAL_RADIUS, ry * CELESTIAL_RADIUS, rz2 * CELESTIAL_RADIUS);
+    }
+
+    // 重建白道（用指定的升交点黄经）
+    function rebuildWhitePath(nodeLonDeg) {
+      // 清除旧的
+      while (whitePathGroup.children.length) {
+        const c = whitePathGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        whitePathGroup.remove(c);
+      }
+
+      const pts = [];
+      const nSeg = 120;
+      const nodeLon = nodeLonDeg * Math.PI / 180;
+      const obl = OBLIQUITY;
+      for (let i = 0; i <= nSeg; i++) {
+        const theta = (i / nSeg) * 2 * Math.PI;
+        // 在白道平面上（以升交点为参考，倾角5.15°）
+        const x = Math.cos(theta);
+        const y = Math.sin(theta) * Math.sin(WHITE_PATH_INCL);
+        const z = -Math.sin(theta) * Math.cos(WHITE_PATH_INCL);
+        // 绕Y轴旋转到升交点方向
+        const rx = x * Math.cos(nodeLon) - z * Math.sin(nodeLon);
+        const rz = x * Math.sin(nodeLon) + z * Math.cos(nodeLon);
+        // 绕X轴旋转黄赤交角（黄道→天球）
+        const ry = y * Math.cos(obl) - rz * Math.sin(obl);
+        const rz2 = y * Math.sin(obl) + rz * Math.cos(obl);
+        pts.push(new THREE.Vector3(
+          rx * CELESTIAL_RADIUS,
+          ry * CELESTIAL_RADIUS,
+          rz2 * CELESTIAL_RADIUS
+        ));
+      }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tubeGeo = new THREE.TubeGeometry(curve, nSeg * 2, 0.04, 6, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0x88ccff,
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false
+      });
+      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      tube.renderOrder = 450;
+      whitePathGroup.add(tube);
+    }
+
+    // 白道上的农历标记
+    const lunarMarkerGroup = new THREE.Group();
+    celestialGroup.add(lunarMarkerGroup);
+    const lunarMarkerObjects = []; // 存储 { dot, label } 对象
+
+    // 农历关键日期：月龄 → 名称
+    const LUNAR_MARKERS = [
+      { age: 0, name: '初一' },
+      { age: 1.85, name: '初二' },
+      { age: 3.69, name: '初三' },
+      { age: 5.54, name: '初五' },
+      { age: 7.38, name: '初七' },
+      { age: 9.23, name: '初九' },
+      { age: 11.07, name: '十一' },
+      { age: 12.92, name: '十三' },
+      { age: 14.77, name: '十五' },
+      { age: 16.61, name: '十七' },
+      { age: 18.46, name: '十九' },
+      { age: 20.30, name: '廿一' },
+      { age: 22.15, name: '廿三' },
+      { age: 23.99, name: '廿五' },
+      { age: 25.84, name: '廿七' },
+      { age: 27.68, name: '廿九' },
+    ];
+
+    // 创建农历标记对象（只创建一次）
+    function createLunarMarkers() {
+      for (const m of LUNAR_MARKERS) {
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0xaaddff })
+        );
+        dot.renderOrder = 460;
+        lunarMarkerGroup.add(dot);
+
+        const labelTex = createLabel(m.name, '#aaddff', 96);
+        const labelMat = new THREE.SpriteMaterial({
+          map: labelTex, transparent: true, depthTest: false, depthWrite: false
+        });
+        const label = new THREE.Sprite(labelMat);
+        label.scale.set(1.6, 0.45, 1);
+        label.renderOrder = 999;
+        lunarMarkerGroup.add(label);
+
+        lunarMarkerObjects.push({ dot, label, age: m.age });
+      }
+    }
+    createLunarMarkers();
+
+    // 更新农历标记位置（不重建几何体，只移动位置）
+    function updateLunarMarkers(sunEclLonDeg, nodeLonDeg) {
+      const synodic = 29.530587;
+      for (const obj of lunarMarkerObjects) {
+        const lonOffset = (obj.age / synodic) * 360;
+        const moonLon = ((sunEclLonDeg + lonOffset) % 360 + 360) % 360;
+        const pos = getWhitePathPoint(moonLon, nodeLonDeg);
+        obj.dot.position.copy(pos);
+        const labelPos = pos.clone().normalize().multiplyScalar(CELESTIAL_RADIUS + 0.8);
+        obj.label.position.copy(labelPos);
+      }
+    }
+
+    // 获取月球在黄道坐标系中的位置（黄经、黄纬、节点），基于给定日期
+    function getMoonEclipticPosition(date) {
+      const jd = date.getTime() / 86400000 + 2440587.5;
+      const d = jd - 2451545.0;
+      // 月球平黄经
+      const L = 218.316 + 13.176396 * d;
+      // 月球平近点角
+      const M = 134.963 + 13.064993 * d;
+      // 升交点黄经
+      const Omega = 125.045 - 0.0529538 * d;
+      // 黄经（考虑中心差）
+      const lambda = L + 6.289 * Math.sin(M * Math.PI / 180);
+      // 真引数（从升交点起算的角距，使用真黄经使经纬度一致）
+      const Ftrue = lambda - Omega;
+      // 黄纬：5.128° * sin(Ftrue)
+      const beta = 5.128 * Math.sin(Ftrue * Math.PI / 180);
+      return {
+        longitude: ((lambda % 360) + 360) % 360,
+        latitude: beta,
+        node: ((Omega % 360) + 360) % 360
+      };
+    }
+
+    // 更新月球在三维场景中的位置
+    function updateMoonPosition(date) {
+      if (!date) date = new Date();
+      const moonPos = getMoonEclipticPosition(date);
+      const lonRad = moonPos.longitude * Math.PI / 180;
+      const latRad = moonPos.latitude * Math.PI / 180;
+      const obl = OBLIQUITY;
+      const r = CELESTIAL_RADIUS * 0.95;
+      // 黄道坐标系（z取反，与太阳坐标约定一致：黄经增加→自西向东）
+      const x = r * Math.cos(lonRad) * Math.cos(latRad);
+      const yEcl = r * Math.sin(latRad);
+      const z = -r * Math.sin(lonRad) * Math.cos(latRad);
+      // 绕X轴旋转黄赤交角 → 天球坐标
+      const ry = yEcl * Math.cos(obl) - z * Math.sin(obl);
+      const rz = yEcl * Math.sin(obl) + z * Math.cos(obl);
+      moonGroup.position.set(x, ry, rz);
+      moonLabel.position.set(0, 0.5, 0);
+
+      // 更新白道上的农历标记
+      const sunLon = getSunEclipticLongitude(date);
+      const nodeLon = getMoonNodeLon(date);
+      updateLunarMarkers(sunLon, nodeLon);
+    }
+
+    // ==================== 月球数据面板 ====================
+    // 获取太阳黄经（度），基于日期
+    function getSunEclipticLongitude(date) {
+      const jd = date.getTime() / 86400000 + 2440587.5;
+      const d = jd - 2451545.0;
+      // 太阳平黄经（考虑岁差）
+      let L = 280.460 + 0.9856474 * d;
+      // 太阳黄经（简化计算，忽略椭圆轨道摄动）
+      const M = 357.528 + 0.9856003 * d; // 平近点角
+      const center = 1.915 * Math.sin(M * Math.PI / 180) + 0.020 * Math.sin(2 * M * Math.PI / 180);
+      let lon = L + center;
+      return ((lon % 360) + 360) % 360;
+    }
+
+    // 获取月龄（从新月起算的天数，0~29.53）
+    function getMoonAge(date) {
+      const sunLon = getSunEclipticLongitude(date);
+      const moonPos = getMoonEclipticPosition(date);
+      let elongation = moonPos.longitude - sunLon;
+      elongation = ((elongation % 360) + 360) % 360;
+      const synodicMonth = 29.530587; // 朔望月长度（天）
+      const age = (elongation / 360) * synodicMonth;
+      return age;
+    }
+
+    // 获取农历日期字符串（基于月龄的近似计算）
+    function getLunarDateString(date) {
+      const age = getMoonAge(date);
+      const day = Math.round(age);
+      // 月相名称映射
+      const phaseNames = [
+        { min: 0, max: 1, name: '新月' },
+        { min: 1, max: 6, name: '蛾眉月' },
+        { min: 6, max: 9, name: '上弦月' },
+        { min: 9, max: 12, name: '盈凸月' },
+        { min: 12, max: 16, name: '满月' },
+        { min: 16, max: 20, name: '亏凸月' },
+        { min: 20, max: 23, name: '下弦月' },
+        { min: 23, max: 27, name: '残月' },
+        { min: 27, max: 30, name: '新月' }
+      ];
+      let phaseName = '——';
+      for (const p of phaseNames) {
+        if (age >= p.min && age < p.max) { phaseName = p.name; break; }
+      }
+      // 农历日（近似：初一~三十）
+      let lunarDay = day + 1; // age=0 → 初一
+      if (lunarDay > 30) lunarDay -= 30;
+      if (lunarDay < 1) lunarDay = 1;
+      const lunarDayNames = [
+        '初一','初二','初三','初四','初五','初六','初七','初八','初九','初十',
+        '十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
+        '廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'
+      ];
+      const dayName = lunarDayNames[lunarDay - 1] || '初一';
+      return { age, dayName, phaseName, lunarDay };
+    }
+
+    // 绘制月相图标
+    // ---- 3D 月相小渲染器 ----
+    const phaseContainer = document.getElementById('moon-phase-3d');
+    const phaseRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    phaseRenderer.setSize(120, 120);
+    phaseRenderer.setPixelRatio(window.devicePixelRatio);
+    phaseContainer.appendChild(phaseRenderer.domElement);
+
+    const phaseScene = new THREE.Scene();
+    const phaseCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+    phaseCamera.position.set(0, 0, 3.5);
+
+    // 月球球体（面板中的3D月相）
+    const phaseMoonGeo = new THREE.SphereGeometry(1, 32, 32);
+    const phaseMoonMat = new THREE.MeshPhongMaterial({
+      color: 0xdddddd,
+      emissive: 0x111111,
+      emissiveIntensity: 0.05,
+      shininess: 5
+    });
+    const phaseMoon = new THREE.Mesh(phaseMoonGeo, phaseMoonMat);
+    phaseScene.add(phaseMoon);
+
+    // 太阳光（方向光，模拟太阳照射方向）
+    const phaseSunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    phaseSunLight.position.set(5, 0, 0);
+    phaseScene.add(phaseSunLight);
+
+    // 微弱环境光
+    const phaseAmbient = new THREE.AmbientLight(0x222233, 0.3);
+    phaseScene.add(phaseAmbient);
+
+    // 面板内3D月球可拖拽旋转
+    let phaseDrag = false, phasePrevX = 0, phasePrevY = 0;
+    let phaseRotX = 0, phaseRotY = 0;
+    phaseContainer.addEventListener('pointerdown', e => { phaseDrag = true; phasePrevX = e.clientX; phasePrevY = e.clientY; });
+    window.addEventListener('pointerup', () => { phaseDrag = false; });
+    window.addEventListener('pointermove', e => {
+      if (!phaseDrag) return;
+      phaseRotY += (e.clientX - phasePrevX) * 0.01;
+      phaseRotX += (e.clientY - phasePrevY) * 0.01;
+      phasePrevX = e.clientX; phasePrevY = e.clientY;
+    });
+
+    // 更新3D月相：根据月龄调整太阳光方向
+    function updatePhase3D(age) {
+      const synodic = 29.530587;
+      const phase = (age / synodic) * 2 * Math.PI;
+      // 相机在+Z方向看月球
+      // 月龄0=新月(光从-Z后方)，月龄7.4=上弦(光从+X右侧)，月龄14.77=满月(光从+Z前方)
+      const angle = phase - Math.PI / 2; // 偏移90°使新月时光从侧面开始
+      phaseSunLight.position.set(Math.cos(angle) * 5, 0, Math.sin(angle) * 5);
+    }
+
+    // 面板3D月相渲染循环
+    function animatePhaseMoon() {
+      requestAnimationFrame(animatePhaseMoon);
+      phaseMoon.rotation.x = phaseRotX;
+      phaseMoon.rotation.y = phaseRotY;
+      phaseRenderer.render(phaseScene, phaseCamera);
+    }
+    animatePhaseMoon();
+
+    // 更新月球数据面板
+    function updateMoonPanel(date) {
+      if (!date) date = new Date();
+      const lunarInfo = getLunarDateString(date);
+      document.getElementById('moon-lunar-date').textContent = '农历 ' + lunarInfo.dayName;
+      document.getElementById('moon-phase-name').textContent = lunarInfo.phaseName + ' (' + lunarInfo.age.toFixed(1) + '天)';
+      updatePhase3D(lunarInfo.age);
+
+      // 月相详细信息
+      const phaseData = getPhaseDetails(lunarInfo.age);
+      document.getElementById('moon-rise-set').textContent = '出没：' + phaseData.riseSet;
+      document.getElementById('moon-appearance').textContent = '形态：' + phaseData.appearance;
+      document.getElementById('moon-position').textContent = '位置：' + phaseData.position;
+    }
+
+    // 根据月龄获取月相详细信息
+    function getPhaseDetails(age) {
+      const phases = [
+        { min: 0, max: 1, riseSet: '与太阳同升同落', appearance: '不可见，月球暗面朝向地球', position: '日月同向，位于太阳附近' },
+        { min: 1, max: 4, riseSet: '日出后升起，日落后落下', appearance: '西侧细弯如眉，日落后西方低空可见', position: '太阳东侧，与日角距较小' },
+        { min: 4, max: 7, riseSet: '午前升起，黄昏后落下', appearance: '西侧亮面增大，呈镰刀形', position: '太阳东侧，角距约60°~90°' },
+        { min: 7, max: 9, riseSet: '正午升起，子夜落下', appearance: '右半亮左半暗，明暗各半', position: '太阳东侧，角距约90°' },
+        { min: 9, max: 12, riseSet: '上午升起，后半夜落下', appearance: '亮面大于暗面，呈凸圆形', position: '太阳东侧，角距约90°~135°' },
+        { min: 12, max: 16, riseSet: '日落升起，日出落下', appearance: '整面明亮，如圆盘', position: '与太阳相对，角距约180°' },
+        { min: 16, max: 20, riseSet: '入夜后升起，上午落下', appearance: '亮面开始减小，呈凸圆形', position: '太阳西侧，角距约135°~180°' },
+        { min: 20, max: 23, riseSet: '子夜升起，正午落下', appearance: '左半亮右半暗，明暗各半', position: '太阳西侧，角距约90°' },
+        { min: 23, max: 27, riseSet: '后半夜升起，午后落下', appearance: '东侧细弯如眉，黎明前东方可见', position: '太阳西侧，角距约60°~90°' },
+        { min: 27, max: 30, riseSet: '与太阳同升同落', appearance: '几乎不可见，即将回归新月', position: '太阳西侧，与日角距很小' }
+      ];
+      for (const p of phases) {
+        if (age >= p.min && age < p.max) return p;
+      }
+      return phases[0];
+    }
+
+    // 从 dayAngle（模拟年位置）获取模拟日期
+    function getSimulatedDate(dayAngle) {
+      // dayAngle = 0 → 春分 ≈ 3月20日
+      const now = new Date();
+      const year = now.getFullYear();
+      const base = new Date(year, 2, 20); // 3月20日
+      // 使用毫秒精度，避免整数天跳跃导致月球位置跳变
+      const dayOffset = (dayAngle / (2 * Math.PI)) * 365.25;
+      return new Date(base.getTime() + dayOffset * 86400000);
+    }
+
+    // 初始化：使用当天日期绘制白道并放置月球
+    const initDate = new Date();
+    const initMoonNode = getMoonNodeLon(initDate);
+    rebuildWhitePath(initMoonNode);
+    updateMoonPosition(initDate);
+    updateMoonPanel(initDate);
+
+    // ==================== 标记赤纬圈 ====================
+    const markedDecGroup = new THREE.Group();
+    celestialGroup.add(markedDecGroup);
+    const markedDecs = []; // 存储 { dec, tube, label } 用于清除
+
+    function addMarkedDec(decDeg) {
+      const decRad = decDeg * Math.PI / 180;
+      const r = CELESTIAL_RADIUS * Math.cos(decRad);
+      const y = CELESTIAL_RADIUS * Math.sin(decRad);
+      const pts = [];
+      for (let i = 0; i <= 72; i++) {
+        const a = (i / 72) * 2 * Math.PI;
+        pts.push(new THREE.Vector3(r * Math.cos(a), y, r * Math.sin(a)));
+      }
+      // 使用不同颜色（青绿/cyan）区别于当前赤纬圈
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tubeGeo = new THREE.TubeGeometry(curve, pts.length * 2, 0.04, 6, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0x44ddcc,
+        transparent: true,
+        opacity: 0.6,
+        depthWrite: false,
+        clippingPlanes: [decClipPlane]
+      });
+      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      tube.renderOrder = 510;
+      markedDecGroup.add(tube);
+
+      // 标记点
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * 2 * Math.PI;
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.06, 6, 6),
+          new THREE.MeshBasicMaterial({ color: 0x44ddcc, clippingPlanes: [decClipPlane] })
+        );
+        dot.position.set(r * Math.cos(a), y, r * Math.sin(a));
+        dot.renderOrder = 998;
+        markedDecGroup.add(dot);
+      }
+
+      // 赤纬值标签（使用 createLabel）
+      const labelTex = createLabel(
+        (decDeg > 0 ? '+' : '') + decDeg.toFixed(1) + '°',
+        '#44ddcc', 36
+      );
+      const labelMat = new THREE.SpriteMaterial({
+        map: labelTex, transparent: true, depthTest: false, depthWrite: false
+      });
+      const label = new THREE.Sprite(labelMat);
+      label.position.set(r + 1.2, y + 0.3, 0);
+      label.scale.set(1.6, 0.4, 1);
+      label.renderOrder = 999;
+      markedDecGroup.add(label);
+
+      markedDecs.push(decDeg);
+    }
+
+    function clearMarkedDecs() {
+      while (markedDecGroup.children.length) {
+        const c = markedDecGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (c.material.map) c.material.map.dispose();
+          c.material.dispose();
+        }
+        markedDecGroup.remove(c);
+      }
+      markedDecs.length = 0;
+    }
+
+    // ==================== 地面标记点 ====================
+    const markerGroup = new THREE.Group();
+    earthRotateGroup.add(markerGroup);
+    const markers = [];
+    let showHorizon = true;
+
+    // 经纬度 → 3D位置（在地球局部坐标系中）
+    function latLngToPosition(lat, lng, radius) {
+      const latRad = lat * Math.PI / 180;
+      const lngRad = lng * Math.PI / 180;
+      const r = radius || EARTH_RADIUS;
+      return new THREE.Vector3(
+        r * Math.cos(latRad) * Math.cos(lngRad),
+        r * Math.sin(latRad),
+        -r * Math.cos(latRad) * Math.sin(lngRad)
+      );
+    }
+
+    // 3D位置 → 经纬度
+    function positionToLatLng(pos) {
+      const r = pos.length();
+      if (r < 0.01) return { lat: 0, lng: 0 };
+      const lat = Math.asin(Math.max(-1, Math.min(1, pos.y / r))) * 180 / Math.PI;
+      const lng = Math.atan2(-pos.z, pos.x) * 180 / Math.PI;
+      return { lat, lng };
+    }
+
+    // 地平圈填充材质数组（供透明度调节用）
+    const horizonDiscMaterials = [];
+
+    // 不透明下半球材质和天顶方向引用
+    let opaqueSphereMat = null;
+    let opaqueSphereZenith = null;
+
+    // 根据地面点构建地平面（天球上的地平圈）
+    function buildHorizonForMarker(marker) {
+      const { lat, lng } = marker;
+      const pos = latLngToPosition(lat, lng);
+      const zenith = pos.clone().normalize();
+
+      // 地平圈在 celestial sphere 上的几何：
+      //   平面方程 p·zenith = EARTH_RADIUS, 球面 |p| = CELESTIAL_RADIUS
+      //   圆心 = zenith * EARTH_RADIUS, 半径 = sqrt(CELESTIAL_R² - EARTH_RADIUS²)
+      const hc = EARTH_RADIUS;           // 圆心到原点距离
+      const hr = Math.sqrt(CELESTIAL_RADIUS * CELESTIAL_RADIUS - EARTH_RADIUS * EARTH_RADIUS);
+
+      // 建立平面内的正交基（东、北方向）
+      let east;
+      if (Math.abs(zenith.y) > 0.999) {
+        east = new THREE.Vector3(1, 0, 0);
+      } else {
+        east = new THREE.Vector3(-pos.z, 0, pos.x).normalize();
+      }
+      const north = new THREE.Vector3().crossVectors(zenith, east).normalize();
+      const center = zenith.clone().multiplyScalar(hc);
+
+      const horizonGroup = new THREE.Group();
+      markerGroup.add(horizonGroup);
+
+      // --- 不透明下半球（遮挡地平面以下的天体） ---
+      // 使用 ShaderMaterial + 世界空间裁剪（避免 Three.js clippingPlanes 的变换问题）
+      // 先移除 tiltGroup 中旧的遮挡半球
+      for (let i = tiltGroup.children.length - 1; i >= 0; i--) {
+        const c = tiltGroup.children[i];
+        if (c.userData && c.userData.isOpaqueSphere) {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) c.material.dispose();
+          tiltGroup.remove(c);
+        }
+      }
+      // 球心在原点（与天球同心），略大于天球半径
+      const opaqueGeo = new THREE.SphereGeometry(CELESTIAL_RADIUS * 1.005, 48, 36);
+      const opaqueMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uClipNormal: { value: new THREE.Vector3(0, 0, 0) },
+          uClipConstant: { value: 0 },
+        },
+        vertexShader: `
+          varying vec3 vWorldPosition;
+          void main() {
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = wp.xyz;
+            gl_Position = projectionMatrix * viewMatrix * wp;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uClipNormal;
+          uniform float uClipConstant;
+          varying vec3 vWorldPosition;
+          void main() {
+            float d = dot(uClipNormal, vWorldPosition) + uClipConstant;
+            if (d < 0.0) discard;
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+          }
+        `,
+        side: THREE.FrontSide,
+      });
+      opaqueSphereMat = opaqueMat;
+      opaqueSphereZenith = zenith.clone();
+      const opaqueMesh = new THREE.Mesh(opaqueGeo, opaqueMat);
+      opaqueMesh.userData.isOpaqueSphere = true;
+      opaqueMesh.renderOrder = 480;
+      tiltGroup.add(opaqueMesh);
+      // 初始更新裁剪平面
+      updateOpaqueSphereClipping();
+
+      // --- 地平圈填充面（半透明圆盘）---
+      // 使用与地平圈管相同的坐标计算，确保完全对齐
+      const tubeRadius = 0.12;
+      const discR = hr + tubeRadius * 1.5;
+      const discSegs = 64;
+      const verts = [center.x, center.y, center.z];
+      for (let i = 0; i <= discSegs; i++) {
+        const theta = (i / discSegs) * 2 * Math.PI;
+        const dir = new THREE.Vector3()
+          .addScaledVector(east, Math.cos(theta))
+          .addScaledVector(north, Math.sin(theta));
+        const p = center.clone().add(dir.multiplyScalar(discR));
+        verts.push(p.x, p.y, p.z);
+      }
+      const idx = [];
+      for (let i = 1; i <= discSegs; i++) {
+        idx.push(0, i, i + 1);
+      }
+      const discGeo = new THREE.BufferGeometry();
+      discGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      discGeo.setIndex(idx);
+      discGeo.computeVertexNormals();
+      const discMat = new THREE.MeshBasicMaterial({
+        color: 0x8B7355,
+        transparent: true,
+        opacity: 0.30,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const disc = new THREE.Mesh(discGeo, discMat);
+      disc.renderOrder = 490;
+      horizonGroup.add(disc);
+      horizonDiscMaterials.push(discMat);
+
+      // --- 地平圈（粗管） ---
+      const pts = [];
+      const segs = 80;
+      for (let i = 0; i < segs; i++) {
+        const theta = (i / segs) * 2 * Math.PI;
+        const dir = new THREE.Vector3()
+          .addScaledVector(east, Math.cos(theta))
+          .addScaledVector(north, Math.sin(theta));
+        const p = center.clone().add(dir.multiplyScalar(hr));
+        pts.push(p);
+      }
+      const curve = new THREE.CatmullRomCurve3(pts, true); // closed curve
+      const tubeGeo = new THREE.TubeGeometry(curve, segs * 2, tubeRadius, 6, true);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0x8B7355,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false
+      });
+      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      tube.renderOrder = 510;
+      horizonGroup.add(tube);
+
+      // --- 地平圈上的方位标记（N/E/S/W）---
+      // dir = east*cos(angle) + north*sin(angle)
+      // angle=0 → East方向, angle=π/2 → North方向
+      const cardLabels = [
+        { label: 'N', angle: -Math.PI / 2 },
+        { label: 'E', angle: Math.PI },
+        { label: 'S', angle: Math.PI / 2 },
+        { label: 'W', angle: 0 }
+      ];
+      for (const cl of cardLabels) {
+        const dir = new THREE.Vector3()
+          .addScaledVector(east, Math.cos(cl.angle))
+          .addScaledVector(north, Math.sin(cl.angle));
+        const p = center.clone().add(dir.clone().multiplyScalar(hr));
+
+        // 标记点
+        const dotColor = cl.label === 'N' ? 0xff3333 : 0x44ddff;
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(cl.label === 'N' ? 0.4 : 0.34, 12, 12),
+          new THREE.MeshBasicMaterial({ color: dotColor })
+        );
+        dot.position.copy(p);
+        dot.renderOrder = 998;
+        horizonGroup.add(dot);
+
+        // 标签
+        const labelTex = createLabel(cl.label, '#44ddff', 128);
+        const labelMat = new THREE.SpriteMaterial({
+          map: labelTex, transparent: true, depthTest: false, depthWrite: false
+        });
+        const label = new THREE.Sprite(labelMat);
+        const lp = p.clone().normalize().multiplyScalar(CELESTIAL_RADIUS + 0.6);
+        label.position.copy(lp);
+        label.scale.set(1.6, 0.8, 1);
+        label.renderOrder = 999;
+        horizonGroup.add(label);
+      }
+
+      // --- 从地心到地平圈的径向参考线（四条）---
+      for (const cl of cardLabels) {
+        const dir = new THREE.Vector3()
+          .addScaledVector(east, Math.cos(cl.angle))
+          .addScaledVector(north, Math.sin(cl.angle));
+        const p = center.clone().add(dir.clone().multiplyScalar(hr));
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          p
+        ]);
+        const lineMat = new THREE.LineBasicMaterial({
+          color: 0x44ddff,
+          transparent: true,
+          opacity: 0.15,
+          depthWrite: false
+        });
+        const line = new THREE.Line(lineGeo, lineMat);
+        line.renderOrder = 490;
+        horizonGroup.add(line);
+      }
+
+      // --- 天顶方向虚线（从地面点垂直延伸到天球，垂直于地平圈）---
+      // 天顶方向 = zenith，即地面点处的地表法线，天然垂直于地平圈所在平面
+      const zenPts = [
+        pos.clone(),
+        zenith.clone().multiplyScalar(CELESTIAL_RADIUS)
+      ];
+      const zenGeo = new THREE.BufferGeometry().setFromPoints(zenPts);
+      const zenMat = new THREE.LineDashedMaterial({
+        color: 0xffdd44,
+        dashSize: 0.15,
+        gapSize: 0.1,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false
+      });
+      const zenLine = new THREE.Line(zenGeo, zenMat);
+      zenLine.computeLineDistances();
+      zenLine.renderOrder = 490;
+      horizonGroup.add(zenLine);
+
+      // 天顶点标签
+      const zenLabel = createLabel('天顶', '#ffdd44', 28);
+      const zenMat2 = new THREE.SpriteMaterial({
+        map: zenLabel, transparent: true, depthTest: false, depthWrite: false
+      });
+      const zenSpr = new THREE.Sprite(zenMat2);
+      zenSpr.position.copy(zenith.clone().multiplyScalar(CELESTIAL_RADIUS + 0.4));
+      zenSpr.scale.set(1.0, 0.4, 1);
+      zenSpr.renderOrder = 999;
+      horizonGroup.add(zenSpr);
+
+      marker.horizonGroup = horizonGroup;
+      horizonGroup.visible = showHorizon;
+    }
+
+    // 更新所有地平圈填充面透明度
+    function updateHorizonOpacity(val) {
+      for (const m of horizonDiscMaterials) {
+        m.opacity = val;
+      }
+    }
+
+    function addMarker(lat, lng) {
+      const pos = latLngToPosition(lat, lng);
+
+      // 标记点（红色小圆球）
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff4444 })
+      );
+      dot.position.copy(pos);
+      dot.renderOrder = 998;
+      markerGroup.add(dot);
+
+      // 外圈光晕
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.10, 0.14, 16),
+        new THREE.MeshBasicMaterial({
+          color: 0xff6666,
+          transparent: true,
+          opacity: 0.6,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        })
+      );
+      ring.position.copy(pos);
+      ring.lookAt(pos.clone().multiplyScalar(2));
+      ring.renderOrder = 999;
+      markerGroup.add(ring);
+
+      // 标签
+      const latStr = (lat >= 0 ? 'N' : 'S') + Math.abs(lat).toFixed(1) + '°';
+      const lngStr = (lng >= 0 ? 'E' : 'W') + Math.abs(lng).toFixed(1) + '°';
+      const labelTex = createLabel(latStr + ' ' + lngStr, '#ff6666', 28);
+      const labelMat = new THREE.SpriteMaterial({
+        map: labelTex, transparent: true, depthTest: false, depthWrite: false
+      });
+      const label = new THREE.Sprite(labelMat);
+      const labelPos = pos.clone().normalize().multiplyScalar(EARTH_RADIUS + 0.35);
+      label.position.copy(labelPos);
+      label.scale.set(1.4, 0.35, 1);
+      label.renderOrder = 999;
+      markerGroup.add(label);
+
+      const marker = { lat, lng, dot, ring, label, pos };
+      markers.push(marker);
+
+      // 自动为该标记生成地平面
+      buildHorizonForMarker(marker);
+    }
+
+    function clearMarkers() {
+      while (markerGroup.children.length) {
+        const c = markerGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (c.material.map) c.material.map.dispose();
+          c.material.dispose();
+        }
+        markerGroup.remove(c);
+      }
+      // 同时移除 tiltGroup 中的不透明下半球
+      for (let i = tiltGroup.children.length - 1; i >= 0; i--) {
+        const c = tiltGroup.children[i];
+        if (c.userData && c.userData.isOpaqueSphere) {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) c.material.dispose();
+          tiltGroup.remove(c);
+        }
+      }
+      opaqueSphereMat = null;
+      opaqueSphereZenith = null;
+      markers.length = 0;
+      horizonDiscMaterials.length = 0;
+    }
+
+    // ==================== 地球半径重建 ====================
+    function rebuildEarth(newRadius) {
+      EARTH_RADIUS = newRadius;
+
+      // 1. 更新地球球体几何
+      earthMesh.geometry.dispose();
+      earthMesh.geometry = new THREE.SphereGeometry(EARTH_RADIUS, 64, 48);
+
+      // 2. 重建经纬网格
+      while (gridGroup.children.length) {
+        const c = gridGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        gridGroup.remove(c);
+      }
+      buildGrid();
+
+      // 3. 重建地轴
+      while (axisGroup.children.length) {
+        const c = axisGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (c.material.map) c.material.map.dispose();
+          c.material.dispose();
+        }
+        axisGroup.remove(c);
+      }
+      buildAxis();
+
+      // 4. 重建标记点和地平圈
+      const markerData = markers.map(function(m) { return { lat: m.lat, lng: m.lng }; });
+      clearMarkers();
+      for (let i = 0; i < markerData.length; i++) {
+        addMarker(markerData[i].lat, markerData[i].lng);
+      }
+
+      // 5. 更新信息栏距离信息
+      document.getElementById('radius-val').textContent = EARTH_RADIUS.toFixed(2);
+
+      // 6. 恢复地平圈透明度（重建时 disc 默认 0.08，需对齐滑块值）
+      const hOp = parseFloat(document.getElementById('slider-horizon-opacity').value);
+      updateHorizonOpacity(hOp);
+    }
+
+    // ==================== 状态变量 ====================
+    let showTexture = true;
+    let showGrid = true;
+    let showAxis = true;
+    let showSky = true;
+    let showStars = true;
+    let showCequator = true;
+    let showEcliptic = true;
+    let showSun = true;
+    let showMoon = true;
+    let showSunDec = false;
+    let showCgrid = true;
+    let showCaxis = false;
+
+    // 从当前日期时间计算初始太阳赤纬和地球自转角度
+    const _now = new Date();
+    const _startOfYear = new Date(_now.getFullYear(), 0, 0);
+    const _dayOfYear = Math.floor((_now - _startOfYear) / (1000 * 60 * 60 * 24));
+    const _dayAngle = (_dayOfYear - 80) / 365.25 * 2 * Math.PI;
+    let solarDeclination = 23.44 * Math.sin(_dayAngle); // 度
+    let earthRotation = ((_now.getUTCHours() + _now.getUTCMinutes() / 60 + _now.getUTCSeconds() / 3600) / 24) * 360; // 度
+    let dayAngle = _dayAngle; // 累计天数角度（0~2π 对应一年），用于地球自转时自动计算赤纬
+
+    // 当前上下文的基准日期（随模拟/手动控制同步更新）
+    let currentBaseDate = getDateFromDeclination(solarDeclination);
+
+    // 自动旋转状态
+    let isPlaying = false;
+    let rotMode = 'earth'; // 'earth' | 'celestial'
+    let autoRotateSpeed = 0.5; // 度/帧
+
+    // ==================== UI绑定 ====================
+    function bindToggle(id, stateGetter, stateSetter, obj, visibilityProp) {
+      document.getElementById(id).addEventListener('click', function() {
+        const newState = !stateGetter();
+        stateSetter(newState);
+        this.classList.toggle('active');
+        if (obj) obj.visible = newState;
+      });
+    }
+
+    // 手动绑定各个开关
+    document.getElementById('btn-tex').addEventListener('click', function() {
+      showTexture = !showTexture;
+      this.classList.toggle('active');
+      if (texLoaded && earthTexture) {
+        earthMat.map = showTexture ? earthTexture : null;
+        earthMat.color.set(showTexture ? 0xffffff : 0x4a90d9);
+        earthMat.needsUpdate = true;
+      }
+    });
+
+    document.getElementById('btn-grid').addEventListener('click', function() {
+      showGrid = !showGrid;
+      this.classList.toggle('active');
+      gridGroup.visible = showGrid;
+    });
+
+    document.getElementById('btn-axis').addEventListener('click', function() {
+      showAxis = !showAxis;
+      this.classList.toggle('active');
+      axisGroup.visible = showAxis;
+    });
+
+    document.getElementById('btn-sky').addEventListener('click', function() {
+      showSky = !showSky;
+      this.classList.toggle('active');
+      skyMesh.visible = showSky;
+    });
+
+    document.getElementById('btn-stars').addEventListener('click', function() {
+      showStars = !showStars;
+      this.classList.toggle('active');
+      starGroup.visible = showStars;
+    });
+
+    document.getElementById('btn-cequator').addEventListener('click', function() {
+      showCequator = !showCequator;
+      this.classList.toggle('active');
+      cequatorGroup.visible = showCequator;
+    });
+
+    document.getElementById('btn-ecliptic').addEventListener('click', function() {
+      showEcliptic = !showEcliptic;
+      this.classList.toggle('active');
+      eclipticGroup.visible = showEcliptic;
+    });
+
+    document.getElementById('btn-sun').addEventListener('click', function() {
+      showSun = !showSun;
+      this.classList.toggle('active');
+      sunGroup.visible = showSun;
+    });
+
+    let showWhitePath = true;
+
+    document.getElementById('btn-moon').addEventListener('click', function() {
+      showMoon = !showMoon;
+      this.classList.toggle('active');
+      moonGroup.visible = showMoon;
+    });
+
+    document.getElementById('btn-white-path').addEventListener('click', function() {
+      showWhitePath = !showWhitePath;
+      this.classList.toggle('active');
+      whitePathGroup.visible = showWhitePath;
+      lunarMarkerGroup.visible = showWhitePath;
+    });
+
+    document.getElementById('btn-dec-circle').addEventListener('click', function() {
+      showSunDec = !showSunDec;
+      this.classList.toggle('active');
+      sunDecGroup.visible = showSunDec;
+    });
+
+    document.getElementById('btn-cgrid').addEventListener('click', function() {
+      showCgrid = !showCgrid;
+      this.classList.toggle('active');
+      cgridGroup.visible = showCgrid;
+      clabelGroup.visible = showCgrid; // 天经天纬标注跟随天球网格
+    });
+
+    document.getElementById('btn-sun-lat').addEventListener('click', function() {
+      showSunLat = !showSunLat;
+      this.classList.toggle('active');
+      sunLatGroup.visible = showSunLat;
+    });
+
+    // 天轴（天北极-天南极连线）
+    const caxisGroup = new THREE.Group();
+    celestialGroup.add(caxisGroup);
+
+    function buildCelestialAxis() {
+      // 清除旧的
+      while (caxisGroup.children.length) {
+        const c = caxisGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        caxisGroup.remove(c);
+      }
+      // 从天南极到天北极的连线
+      const pts = [
+        new THREE.Vector3(0, -CELESTIAL_RADIUS, 0),
+        new THREE.Vector3(0, CELESTIAL_RADIUS, 0)
+      ];
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.7 });
+      const line = new THREE.Line(geo, mat);
+      line.renderOrder = 500;
+      caxisGroup.add(line);
+
+      // 天北极标记
+      const npoleTex = createLabel('天北', '#ffaa44', 28);
+      const npoleMat = new THREE.SpriteMaterial({ map: npoleTex, transparent: true, depthTest: false, depthWrite: false });
+      const npoleSpr = new THREE.Sprite(npoleMat);
+      npoleSpr.position.set(0, CELESTIAL_RADIUS + 0.5, 0);
+      npoleSpr.scale.set(1.6, 0.5, 1);
+      npoleSpr.renderOrder = 999;
+      caxisGroup.add(npoleSpr);
+
+      // 天南极标记
+      const spoleTex = createLabel('天南', '#ffaa44', 28);
+      const spoleMat = new THREE.SpriteMaterial({ map: spoleTex, transparent: true, depthTest: false, depthWrite: false });
+      const spoleSpr = new THREE.Sprite(spoleMat);
+      spoleSpr.position.set(0, -CELESTIAL_RADIUS - 0.5, 0);
+      spoleSpr.scale.set(1.6, 0.5, 1);
+      spoleSpr.renderOrder = 999;
+      caxisGroup.add(spoleSpr);
+
+      caxisGroup.visible = showCaxis;
+    }
+    buildCelestialAxis();
+
+    document.getElementById('btn-caxis').addEventListener('click', function() {
+      showCaxis = !showCaxis;
+      this.classList.toggle('active');
+      caxisGroup.visible = showCaxis;
+    });
+
+    // ==================== 更新函数 ====================
+    function updateSunPosition(decDeg) {
+      // 太阳沿黄道运动，赤纬为 decDeg
+      // 黄道坐标系中，太阳位置由黄经决定
+      // 给定赤纬 dec，求黄经：sin(dec) = sin(obliquity) * sin(eclipticLongitude)
+      const decRad = decDeg * Math.PI / 180;
+      const sinLon = Math.sin(decRad) / Math.sin(OBLIQUITY);
+      // 限制范围 [-1, 1]
+      const clamped = Math.max(-1, Math.min(1, sinLon));
+      const asinVal = Math.asin(clamped);
+      let eclLon;
+      // 使用 dayAngle 判断黄经象限
+      // dayAngle 在 [0, π/2] → 黄经在 [0, π/2]（春分→夏至，赤纬上升）
+      // dayAngle 在 [π/2, π] → 黄经在 [π/2, π]（夏至→秋分，赤纬下降）
+      // dayAngle 在 [π, 3π/2] → 黄经在 [π, 3π/2]（秋分→冬至，赤纬下降）
+      // dayAngle 在 [3π/2, 2π] → 黄经在 [3π/2, 2π]（冬至→春分，赤纬上升）
+      if (dayAngle >= 0 && dayAngle <= Math.PI / 2) {
+        eclLon = asinVal; // [0, π/2]
+      } else if (dayAngle > Math.PI / 2 && dayAngle <= Math.PI) {
+        eclLon = Math.PI - asinVal; // [π/2, π]
+      } else if (dayAngle > Math.PI && dayAngle <= 3 * Math.PI / 2) {
+        eclLon = Math.PI - asinVal; // [π, 3π/2]（asinVal为负）
+      } else {
+        eclLon = 2 * Math.PI + asinVal; // [3π/2, 2π]（asinVal为负）
+      }
+      // 太阳在天球上的位置（沿黄道）
+      const r = CELESTIAL_RADIUS * 0.95;
+      const sx = r * Math.cos(eclLon);
+      const sy = r * Math.sin(eclLon) * Math.sin(OBLIQUITY);
+      const sz = -r * Math.sin(eclLon) * Math.cos(OBLIQUITY);
+      
+      sunGroup.position.set(sx, sy, sz);
+
+      // 更新太阳光方向
+      updateSunLightPosition();
+
+      // 更新直射点位置
+      updateSubsolarPoint();
+
+      // 更新直射纬线
+      buildSunLatLine(decDeg);
+    }
+
+    // 更新直射点：将太阳的世界方向转换到 earthSystem 局部空间
+    function updateSubsolarPoint() {
+      const sunWorldPos = new THREE.Vector3();
+      sunGroup.getWorldPosition(sunWorldPos);
+      earthSystem.worldToLocal(sunWorldPos);
+      const spDir = sunWorldPos.normalize();
+      sunPointMesh.position.copy(spDir.multiplyScalar(EARTH_RADIUS * 1.01));
+    }
+
+    // 更新太阳光方向：在场景世界空间中指向太阳方向
+    function updateSunLightPosition() {
+      const sunWorldPos = new THREE.Vector3();
+      sunGroup.getWorldPosition(sunWorldPos);
+      // 光源放在太阳位置，目标指向地心（原点）
+      sunLight.position.copy(sunWorldPos);
+      sunLightTarget.position.set(0, 0, 0);
+      sunLight.target.updateMatrixWorld();
+    }
+
+    function updateDate(decDeg) {
+      const date = getDateFromDeclination(decDeg);
+      const month = date.getMonth() + 1;
+      const d = date.getDate();
+      dateDisplay.textContent = month + '月' + d + '日';
+    }
+
+    function getDateFromDeclination(decDeg) {
+      // 根据赤纬反算 dayAngle，再转为连续日期
+      // dec = 23.44 * sin(dayAngle)
+      // dayAngle: 0=春分, π/2=夏至, π=秋分, 3π/2=冬至
+      const clamped = Math.max(-1, Math.min(1, decDeg / 23.44));
+      const asinVal = Math.asin(clamped);
+      let dayAng;
+      // 需要知道赤纬是在上升还是下降阶段
+      // 使用 dayAngle 全局变量判断：如果 dayAngle 在 [0, π/2) 或 (3π/2, 2π]，赤纬上升
+      // 如果 dayAngle 在 (π/2, 3π/2)，赤纬下降
+      if (dayAngle <= Math.PI / 2 || dayAngle > 3 * Math.PI / 2) {
+        // 赤纬上升阶段：dayAngle 在 [0, π/2] 或 [3π/2, 2π]
+        if (decDeg >= 0) {
+          dayAng = asinVal; // [0, π/2]
+        } else {
+          dayAng = 2 * Math.PI + asinVal; // [3π/2, 2π]（asinVal为负）
+        }
+      } else {
+        // 赤纬下降阶段：dayAngle 在 [π/2, 3π/2]
+        if (decDeg >= 0) {
+          dayAng = Math.PI - asinVal; // [π/2, π]
+        } else {
+          dayAng = Math.PI - asinVal; // [π, 3π/2]（asinVal为负）
+        }
+      }
+      const now = new Date();
+      const year = now.getFullYear();
+      const base = new Date(year, 2, 20); // 3月20日
+      const dayOffset = (dayAng / (2 * Math.PI)) * 365.25;
+      return new Date(base.getTime() + dayOffset * 86400000);
+    }
+
+    function updateAll() {
+      solarDeclination = parseFloat(sliderDec.value);
+      earthRotation = parseFloat(sliderRot.value);
+      const dist = parseFloat(sliderDist.value);
+
+      decVal.textContent = (solarDeclination >= 0 ? '+' : '') + solarDeclination.toFixed(1) + '°';
+      rotVal.textContent = earthRotation.toFixed(0) + '°';
+      distVal.textContent = dist.toFixed(0);
+
+      // 更新地球自转
+      earthRotateGroup.rotation.y = earthRotation * Math.PI / 180;
+      updateOpaqueSphereClipping();
+
+      // 更新太阳位置
+      updateSunPosition(solarDeclination);
+      // 更新太阳赤纬圈
+      updateSunDecCircle(solarDeclination);
+
+      // 更新信息栏
+      infoDec.textContent = (solarDeclination >= 0 ? '+' : '') + solarDeclination.toFixed(1) + '°';
+      const latDir = solarDeclination >= 0 ? 'N' : 'S';
+      infoLat.textContent = Math.abs(solarDeclination).toFixed(1) + '°' + latDir;
+
+      // 更新日期
+      updateDate(solarDeclination);
+      // 根据赤纬获取一致日期，用于月球位置和面板
+      const decDate = getDateFromDeclination(solarDeclination);
+      currentBaseDate = decDate;
+      // 更新月球位置
+      updateMoonPosition(decDate);
+      // 更新月球数据面板
+      updateMoonPanel(decDate);
+
+      // 更新摄像机距离
+      const dir = camera.position.clone().normalize();
+      camera.position.copy(dir.multiplyScalar(dist));
+      controls.update();
+    }
+
+    // ==================== 事件绑定 ====================
+    sliderDec.addEventListener('input', updateAll);
+    sliderRot.addEventListener('input', updateAll);
+    sliderDist.addEventListener('input', updateAll);
+    sliderRadius.addEventListener('input', function() {
+      const val = parseFloat(this.value);
+      radiusVal.textContent = val.toFixed(2);
+      rebuildEarth(val);
+      // 重建直射纬线（使用当前赤纬）
+      buildSunLatLine(solarDeclination);
+    });
+
+    // ==================== 天球倾斜 ====================
+    function updateTilt() {
+      const x = parseFloat(sliderTiltX.value);
+      const y = parseFloat(sliderTiltY.value);
+      const z = parseFloat(sliderTiltZ.value);
+      tiltXVal.textContent = x + '°';
+      tiltYVal.textContent = y + '°';
+      tiltZVal.textContent = z + '°';
+      tiltGroup.rotation.set(x * Math.PI / 180, y * Math.PI / 180, z * Math.PI / 180);
+      // 天球倾斜后太阳在世界空间的位置发生变化，更新光照方向和直射点
+      updateSunLightPosition();
+      updateSubsolarPoint();
+      updateOpaqueSphereClipping();
+    }
+    sliderTiltX.addEventListener('input', updateTilt);
+    sliderTiltY.addEventListener('input', updateTilt);
+    sliderTiltZ.addEventListener('input', updateTilt);
+
+    // 更新不透明下半球裁剪平面（世界空间，在 tilt/自转/公转变化时调用）
+    function updateOpaqueSphereClipping() {
+      if (!opaqueSphereMat || !opaqueSphereZenith) return;
+      // 计算世界空间的天顶方向 = tiltGroup * earthRotateGroup * localZenith
+      const worldZenith = opaqueSphereZenith.clone()
+        .applyQuaternion(earthRotateGroup.quaternion)
+        .applyQuaternion(tiltGroup.quaternion);
+      opaqueSphereMat.uniforms.uClipNormal.value.copy(worldZenith.negate());
+      opaqueSphereMat.uniforms.uClipConstant.value = EARTH_RADIUS;
+      // 同步更新赤纬圈裁剪平面
+      updateDecClipPlane();
+    }
+
+    // ==================== 面板展开/收缩 ====================
+    const panelBody = document.getElementById('panel-body');
+    const panelToggle = document.getElementById('panel-toggle');
+    function applyPanelState(collapsed) {
+      panelBody.classList.toggle('collapsed', collapsed);
+      panelToggle.textContent = collapsed ? '▸' : '▾';
+      localStorage.setItem('panelCollapsed', collapsed ? '1' : '0');
+    }
+    if (localStorage.getItem('panelCollapsed') === '1') applyPanelState(true);
+    panelToggle.addEventListener('click', () => {
+      applyPanelState(!panelBody.classList.contains('collapsed'));
+    });
+
+    // ---- 天球倾斜面板折叠 ----
+    const tiltPanelBody = document.getElementById('tilt-panel-body');
+    const tiltPanelToggle = document.getElementById('tilt-panel-toggle');
+    function applyTiltPanelState(collapsed) {
+      tiltPanelBody.classList.toggle('collapsed', collapsed);
+      tiltPanelToggle.textContent = collapsed ? '▸' : '▾';
+      localStorage.setItem('tiltPanelCollapsed', collapsed ? '1' : '0');
+    }
+    if (localStorage.getItem('tiltPanelCollapsed') === '1') applyTiltPanelState(true);
+    tiltPanelToggle.addEventListener('click', () => {
+      applyTiltPanelState(!tiltPanelBody.classList.contains('collapsed'));
+    });
+
+    // ---- 月球数据面板折叠 ----
+    const moonPanelBody = document.getElementById('moon-panel-body');
+    const moonPanelToggle = document.getElementById('moon-panel-toggle');
+    function applyMoonPanelState(collapsed) {
+      moonPanelBody.classList.toggle('collapsed', collapsed);
+      moonPanelToggle.textContent = collapsed ? '▸' : '▾';
+      localStorage.setItem('moonPanelCollapsed', collapsed ? '1' : '0');
+    }
+    if (localStorage.getItem('moonPanelCollapsed') === '1') applyMoonPanelState(true);
+    moonPanelToggle.addEventListener('click', () => {
+      applyMoonPanelState(!moonPanelBody.classList.contains('collapsed'));
+    });
+
+    // ==================== 响应式 ====================
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (useOrtho) syncOrthoCamera();
+    });
+
+    // ==================== 事件绑定（新控件） ====================
+    document.getElementById('btn-play').addEventListener('click', function() {
+      isPlaying = !isPlaying;
+      this.classList.toggle('active');
+      this.textContent = isPlaying ? '■ 暂停' : '▶ 播放';
+    });
+
+    document.getElementById('btn-rot-mode').addEventListener('click', function() {
+      rotMode = (rotMode === 'earth') ? 'celestial' : 'earth';
+      this.classList.toggle('active');
+      this.textContent = (rotMode === 'earth') ? '🌍 地球自转' : '🔭 天球反转';
+    });
+
+    sliderSpeed.addEventListener('input', function() {
+      autoRotateSpeed = parseFloat(this.value);
+      speedVal.textContent = autoRotateSpeed.toFixed(1) + '°/帧';
+    });
+
+    // ---- 月球数据面板滑块 ----
+    const sliderMoonSize = document.getElementById('slider-moon-size');
+    const moonSizeVal = document.getElementById('moon-size-val');
+    sliderMoonSize.addEventListener('input', function() {
+      const size = parseFloat(this.value);
+      moonSizeVal.textContent = size.toFixed(2);
+      // 更新月球球体大小
+      moonSphere.geometry.dispose();
+      moonSphere.geometry = new THREE.SphereGeometry(size, 20, 20);
+      // 更新光晕大小
+      moonGlow.scale.set(size * 4, size * 4, 1);
+    });
+
+    document.getElementById('btn-mark-dec').addEventListener('click', function() {
+      addMarkedDec(solarDeclination);
+    });
+
+    document.getElementById('btn-clear-marks').addEventListener('click', function() {
+      clearMarkedDecs();
+    });
+
+    // ==================== 地面标记点 ====================
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function onEarthClick(event) {
+      // 计算鼠标位置归一化坐标
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointer, useOrtho ? orthoCamera : camera);
+
+      // 与地球求交
+      const intersects = raycaster.intersectObject(earthMesh);
+      if (intersects.length > 0) {
+        const pt = intersects[0].point;
+        // 转换到 earthRotateGroup 局部空间
+        const localPt = earthRotateGroup.worldToLocal(pt.clone());
+        const { lat, lng } = positionToLatLng(localPt);
+        addMarker(lat, lng);
+      }
+    }
+
+    renderer.domElement.addEventListener('dblclick', onEarthClick);
+
+    document.getElementById('btn-add-marker').addEventListener('click', function() {
+      const lat = parseFloat(document.getElementById('input-lat').value);
+      const lng = parseFloat(document.getElementById('input-lng').value);
+      if (isNaN(lat) || isNaN(lng)) return;
+      addMarker(Math.max(-90, Math.min(90, lat)), lng);
+    });
+
+    document.getElementById('btn-clear-markers').addEventListener('click', function() {
+      clearMarkers();
+    });
+
+    document.getElementById('btn-horizon').addEventListener('click', function() {
+      showHorizon = !showHorizon;
+      this.classList.toggle('active');
+      for (const m of markers) {
+        if (m.horizonGroup) m.horizonGroup.visible = showHorizon;
+      }
+      // 更新赤纬圈裁剪平面
+      updateDecClipPlane();
+    });
+
+    document.getElementById('slider-horizon-opacity').addEventListener('input', function() {
+      const val = parseFloat(this.value);
+      document.getElementById('horizon-opacity-val').textContent = val.toFixed(2);
+      updateHorizonOpacity(val);
+    });
+
+    // 正射投影切换按钮（动态创建）
+    const orthoBtn = document.createElement('button');
+    orthoBtn.className = 'toggle-btn active';
+    orthoBtn.textContent = '📐 正射投影';
+    orthoBtn.style.cssText = 'position:fixed;bottom:52px;right:16px;z-index:10;padding:6px 12px;font-size:10px;';
+    document.body.appendChild(orthoBtn);
+    orthoBtn.addEventListener('click', function() {
+      useOrtho = !useOrtho;
+      this.classList.toggle('active');
+      this.textContent = useOrtho ? '📐 正射投影' : '📐 透视投影';
+      if (useOrtho) syncOrthoCamera();
+    });
+
+    // ==================== 动画循环 ====================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 1. 自动旋转
+      if (isPlaying) {
+        const speedRad = autoRotateSpeed * Math.PI / 180;
+        if (rotMode === 'earth') {
+          earthRotateGroup.rotation.y += speedRad;
+          updateOpaqueSphereClipping();
+          // 同步滑块
+          earthRotation = (earthRotateGroup.rotation.y * 180 / Math.PI) % 360;
+          if (earthRotation < 0) earthRotation += 360;
+          sliderRot.value = earthRotation;
+          rotVal.textContent = earthRotation.toFixed(0) + '°';
+
+          // 地球自转时自动推进日期，每转一圈 ≈ 1天，赤纬缓慢变化
+          dayAngle += speedRad / (2 * Math.PI) * (2 * Math.PI / 365.25);
+          if (dayAngle > 2 * Math.PI) dayAngle -= 2 * Math.PI;
+          const newDec = 23.44 * Math.sin(dayAngle);
+          solarDeclination = newDec;
+          // 同步赤纬滑块与显示
+          sliderDec.value = newDec;
+          decVal.textContent = newDec.toFixed(2) + '°';
+          // 更新太阳位置、直射点、纬线
+          updateSunPosition(newDec);
+          updateDate(newDec);
+          // 日期变化后同步更新月球位置
+          const simDate = getSimulatedDate(dayAngle);
+          currentBaseDate = simDate;
+          updateMoonPosition(simDate);
+          // 更新月球数据面板
+          updateMoonPanel(simDate);
+        } else {
+          // 天球反转
+          celestialGroup.rotation.y -= speedRad;
+          // 天球转动后太阳位置变化，更新光照方向
+          updateSunLightPosition();
+          // 更新直射点
+          updateSubsolarPoint();
+        }
+      }
+
+      // 2. 同步正交相机
+      if (useOrtho) {
+        syncOrthoCamera();
+      }
+
+      controls.update();
+
+      // 3. 使用当前相机渲染（背面淡化使用 Three.js 内置 cameraPosition 自动更新）
+      const activeCam = useOrtho ? orthoCamera : camera;
+      renderer.render(scene, activeCam);
+    }
+
+    // ==================== 初始化 ====================
+    // 同步滑块与日期计算值
+    sliderDec.value = solarDeclination;
+    sliderRot.value = earthRotation;
+    updateAll();
+    updateTilt();
+    animate();
+
+    console.log('✅ 天球-n 加载完成');
+  </script>
+</body>
+</html>
