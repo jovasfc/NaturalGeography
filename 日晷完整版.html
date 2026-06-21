@@ -749,7 +749,8 @@
       // 加载真实的地球纹理
       const textureLoader = new THREE.TextureLoader();
       earthTextureCache = textureLoader.load(
-        'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+        //'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+        './img/earth-blue-marble.jpg',
         (texture) => {
           texture.minFilter = THREE.LinearFilter;
           texture.wrapS = THREE.RepeatWrapping;
