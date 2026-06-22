@@ -193,6 +193,10 @@
       <button class="toggle-btn" id="btn-dec-circle">赤纬圈</button>
       <button class="toggle-btn" id="btn-sun-lat">☀ 直射纬线</button>
       <button class="toggle-btn" id="btn-same-meridian">同天经</button>
+      <button class="toggle-btn hide-all-btn" id="btn-hide-all">一键隐藏</button>
+      <button class="toggle-btn" id="btn-sunlight">阳光</button>
+      <button class="toggle-btn" id="btn-subsolar-horizon">直射点地平面</button>
+      <button class="toggle-btn" id="btn-click-horizon">点击加地平面</button>
     </div>
     <div class="toggle-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:6px;">
       <button class="toggle-btn accent2" id="btn-play">▶ 播放</button>
@@ -406,7 +410,8 @@
     earthRotateGroup.add(earthMesh);
 
     textureLoader.load(
-      'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+      //'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+      './img/earth-blue-marble.jpg',
       (tex) => {
         tex.minFilter = THREE.LinearFilter;
         tex.wrapS = THREE.RepeatWrapping;
@@ -2084,6 +2089,11 @@
         addMarker(markerData[i].lat, markerData[i].lng);
       }
 
+      // 4b. 重建点击地平面
+      rebuildClickedHorizons();
+      // 4c. 更新直射点地平面
+      updateSubsolarHorizon();
+
       // 5. 更新信息栏距离信息
       document.getElementById('radius-val').textContent = EARTH_RADIUS.toFixed(2);
 
@@ -2373,6 +2383,292 @@
       }
     });
 
+    // 一键隐藏：星空、银河、黄道、白道、天赤道
+    let hideAllActive = false;
+    document.getElementById('btn-hide-all').addEventListener('click', function() {
+      hideAllActive = !hideAllActive;
+      this.classList.toggle('active', !hideAllActive);
+      if (hideAllActive) {
+        // 隐藏
+        starGroup.visible = false;
+        milkyWayGroup.visible = false;
+        eclipticGroup.visible = false;
+        whitePathGroup.visible = false;
+        lunarMarkerGroup.visible = false;
+        cequatorGroup.visible = false;
+        // 同步更新按钮状态
+        document.getElementById('btn-ecliptic').classList.remove('active');
+        document.getElementById('btn-white-path').classList.remove('active');
+        document.getElementById('btn-milkyway').classList.remove('active');
+        showStars = false;
+        showMilkyWay = false;
+        showEcliptic = false;
+        showWhitePath = false;
+        showCequator = false;
+      } else {
+        // 恢复
+        starGroup.visible = true;
+        milkyWayGroup.visible = true;
+        eclipticGroup.visible = true;
+        whitePathGroup.visible = true;
+        lunarMarkerGroup.visible = true;
+        cequatorGroup.visible = true;
+        document.getElementById('btn-ecliptic').classList.add('active');
+        document.getElementById('btn-white-path').classList.add('active');
+        document.getElementById('btn-milkyway').classList.add('active');
+        showStars = true;
+        showMilkyWay = true;
+        showEcliptic = true;
+        showWhitePath = true;
+        showCequator = true;
+      }
+    });
+
+    // 阳光箭头：从太阳指向直射点
+    const sunlightArrowGroup = new THREE.Group();
+    scene.add(sunlightArrowGroup);
+    sunlightArrowGroup.visible = false;
+
+    let sunlightArrow = null; // { cylinder, cone }
+
+    function updateSunlightArrow() {
+      if (sunlightArrow) {
+        sunlightArrowGroup.remove(sunlightArrow.cylinder);
+        sunlightArrowGroup.remove(sunlightArrow.cone);
+        sunlightArrow.cylinder.geometry.dispose();
+        sunlightArrow.cylinder.material.dispose();
+        sunlightArrow.cone.geometry.dispose();
+        sunlightArrow.cone.material.dispose();
+        sunlightArrow = null;
+      }
+      if (!sunlightArrowGroup.visible) return;
+
+      const sunWorldPos = new THREE.Vector3();
+      sunGroup.getWorldPosition(sunWorldPos);
+
+      const spLocal = sunPointMesh.position.clone();
+      const spWorld = spLocal.clone();
+      earthSystem.localToWorld(spWorld);
+
+      const dir = new THREE.Vector3().subVectors(spWorld, sunWorldPos);
+      const len = dir.length();
+      const halfLen = len / 2;
+      const midPoint = new THREE.Vector3().addVectors(sunWorldPos, spWorld).multiplyScalar(0.5);
+
+      const cylGeo = new THREE.CylinderGeometry(0.04, 0.04, len, 8);
+      const cylMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.7, depthWrite: false });
+      const cyl = new THREE.Mesh(cylGeo, cylMat);
+      cyl.position.copy(midPoint);
+      const dirNorm = dir.normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      const quat = new THREE.Quaternion().setFromUnitVectors(up, dirNorm.clone());
+      cyl.setRotationFromQuaternion(quat);
+      cyl.renderOrder = 300;
+      sunlightArrowGroup.add(cyl);
+
+      const coneLen = Math.min(0.3, len * 0.15);
+      const coneGeo = new THREE.ConeGeometry(0.1, coneLen, 8);
+      const coneMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.7, depthWrite: false });
+      const cone = new THREE.Mesh(coneGeo, coneMat);
+      cone.position.copy(midPoint.clone().add(dirNorm.clone().multiplyScalar(halfLen - coneLen / 2)));
+      cone.setRotationFromQuaternion(quat);
+      cone.renderOrder = 300;
+      sunlightArrowGroup.add(cone);
+
+      sunlightArrow = { cylinder: cyl, cone: cone };
+    }
+
+    document.getElementById('btn-sunlight').addEventListener('click', function() {
+      this.classList.toggle('active');
+      sunlightArrowGroup.visible = this.classList.contains('active');
+      updateSunlightArrow();
+    });
+
+    // 直射点地平面：在直射点处显示小型地平面环
+    const subsolarHorizonGroup = new THREE.Group();
+    earthRotateGroup.add(subsolarHorizonGroup);
+    subsolarHorizonGroup.visible = false;
+
+    function createSmallHorizonDisc(lat, lng, color = 0x44ddff) {
+      const pos = latLngToPosition(lat, lng, EARTH_RADIUS);
+      const zenith = pos.clone().normalize();
+      const group = new THREE.Group();
+
+      // 小环
+      const ringGeo = new THREE.TorusGeometry(0.1, 0.04, 8, 24);
+      const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, depthWrite: false });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.renderOrder = 500;
+      ring.userData.isHorizonRing = true;
+
+      // 半透明填充圆盘
+      const discGeo = new THREE.CircleGeometry(4.8, 24);
+      const discMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
+      const disc = new THREE.Mesh(discGeo, discMat);
+      disc.renderOrder = 499;
+
+      group.add(ring);
+      group.add(disc);
+      group.position.copy(pos);
+
+      // 使环与地表相切（法线对齐 zenith）
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), zenith);
+      group.setRotationFromQuaternion(quat);
+
+      return group;
+    }
+
+    function updateSubsolarHorizon() {
+      while (subsolarHorizonGroup.children.length) {
+        const c = subsolarHorizonGroup.children[0];
+        c.traverse(child => {
+          if (child.geometry && child.geometry !== c.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        subsolarHorizonGroup.remove(c);
+      }
+      if (!subsolarHorizonGroup.visible) return;
+      // sunPointMesh 在 earthSystem 中，需转换到 earthRotateGroup 空间
+      const spInEarthSystem = sunPointMesh.position.clone();
+      const spWorld = spInEarthSystem.clone();
+      earthSystem.localToWorld(spWorld);
+      const spInRotate = earthRotateGroup.worldToLocal(spWorld);
+      const { lat, lng } = positionToLatLng(spInRotate);
+      const disc = createSmallHorizonDisc(lat, lng, 0xffaa00);
+      subsolarHorizonGroup.add(disc);
+    }
+
+    document.getElementById('btn-subsolar-horizon').addEventListener('click', function() {
+      this.classList.toggle('active');
+      subsolarHorizonGroup.visible = this.classList.contains('active');
+      updateSubsolarHorizon();
+    });
+
+    // 点击地面加地平面（三模式：关闭→点击添加→拖拽）
+    const clickedHorizonGroup = new THREE.Group();
+    earthRotateGroup.add(clickedHorizonGroup);
+    const clickedHorizons = []; // { group, lat, lng }
+    // 0=关闭, 1=点击添加, 2=拖拽
+    let clickHorizonMode = 0;
+    let draggingHorizon = null;
+
+    const btnClickHorizon = document.getElementById('btn-click-horizon');
+    btnClickHorizon.addEventListener('click', function() {
+      clickHorizonMode = (clickHorizonMode + 1) % 3;
+      this.classList.remove('active', 'drag-mode');
+      if (clickHorizonMode === 1) {
+        this.classList.add('active');
+        this.textContent = '点击加地平面';
+      } else if (clickHorizonMode === 2) {
+        this.classList.add('drag-mode');
+        this.textContent = '拖拽地平面';
+      } else {
+        this.textContent = '点击加地平面';
+      }
+    });
+
+    function addClickedHorizon(lat, lng) {
+      const disc = createSmallHorizonDisc(lat, lng, 0x44ddff);
+      clickedHorizonGroup.add(disc);
+      clickedHorizons.push({ group: disc, lat, lng });
+    }
+
+    function rebuildClickedHorizons() {
+      while (clickedHorizonGroup.children.length) {
+        const c = clickedHorizonGroup.children[0];
+        c.traverse(child => {
+          if (child.geometry && child.geometry !== c.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        clickedHorizonGroup.remove(c);
+      }
+      for (const h of clickedHorizons) {
+        const disc = createSmallHorizonDisc(h.lat, h.lng, 0x44ddff);
+        clickedHorizonGroup.add(disc);
+        h.group = disc;
+      }
+    }
+
+    function onEarthClickHorizon(event) {
+      if (clickHorizonMode !== 1) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, useOrtho ? orthoCamera : camera);
+      const intersects = raycaster.intersectObject(earthMesh);
+      if (intersects.length > 0) {
+        const pt = intersects[0].point;
+        const localPt = earthRotateGroup.worldToLocal(pt.clone());
+        const { lat, lng } = positionToLatLng(localPt);
+        addClickedHorizon(lat, lng);
+      }
+    }
+
+    // 拖拽地平面（仅在拖拽模式有效）
+    function onHorizonDragStart(event) {
+      if (clickHorizonMode !== 2) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, useOrtho ? orthoCamera : camera);
+
+      const allRings = [];
+      clickedHorizonGroup.traverse(child => {
+        if (child.userData && child.userData.isHorizonRing) allRings.push(child);
+      });
+      const intersects = raycaster.intersectObjects(allRings);
+      if (intersects.length > 0) {
+        draggingHorizon = intersects[0].object.parent;
+        controls.enabled = false;
+        event.stopPropagation();
+      }
+    }
+
+    function onHorizonDragMove(event) {
+      if (!draggingHorizon) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, useOrtho ? orthoCamera : camera);
+
+      const intersects = raycaster.intersectObject(earthMesh);
+      if (intersects.length > 0) {
+        const pt = intersects[0].point;
+        const localPt = earthRotateGroup.worldToLocal(pt.clone());
+        const { lat, lng } = positionToLatLng(localPt);
+
+        const pos = latLngToPosition(lat, lng, EARTH_RADIUS);
+        const zenith = pos.clone().normalize();
+        draggingHorizon.position.copy(pos);
+        const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), zenith);
+        draggingHorizon.setRotationFromQuaternion(quat);
+
+        for (const h of clickedHorizons) {
+          if (h.group === draggingHorizon) {
+            h.lat = lat;
+            h.lng = lng;
+            break;
+          }
+        }
+      }
+    }
+
+    function onHorizonDragEnd(event) {
+      if (draggingHorizon) {
+        controls.enabled = true;
+      }
+      draggingHorizon = null;
+    }
+
+    renderer.domElement.addEventListener('click', onEarthClickHorizon);
+    renderer.domElement.addEventListener('mousedown', onHorizonDragStart);
+    renderer.domElement.addEventListener('mousemove', onHorizonDragMove);
+    renderer.domElement.addEventListener('mouseup', onHorizonDragEnd);
+
     // ==================== 更新函数 ====================
     function updateSunPosition(decDeg) {
       // 太阳沿黄道运动，赤纬为 decDeg
@@ -2408,9 +2704,11 @@
 
       // 更新太阳光方向
       updateSunLightPosition();
+      updateSunlightArrow();
 
       // 更新直射点位置
       updateSubsolarPoint();
+      updateSubsolarHorizon();
 
       // 更新直射纬线
       buildSunLatLine(decDeg);
@@ -2525,6 +2823,9 @@
       rebuildEarth(val);
       // 重建直射纬线（使用当前赤纬）
       buildSunLatLine(solarDeclination);
+      // 更新直射点和阳光箭头
+      updateSubsolarPoint();
+      updateSunlightArrow();
     });
 
     // ==================== 天球倾斜 ====================
@@ -2538,7 +2839,9 @@
       tiltGroup.rotation.set(x * Math.PI / 180, y * Math.PI / 180, z * Math.PI / 180);
       // 天球倾斜后太阳在世界空间的位置发生变化，更新光照方向和直射点
       updateSunLightPosition();
+      updateSunlightArrow();
       updateSubsolarPoint();
+      updateSubsolarHorizon();
       updateOpaqueSphereClipping();
     }
     sliderTiltX.addEventListener('input', updateTilt);
@@ -2741,6 +3044,10 @@
           decVal.textContent = newDec.toFixed(2) + '°';
           // 更新太阳位置、直射点、纬线
           updateSunPosition(newDec);
+          updateSunLightPosition();
+          updateSunlightArrow();
+          updateSubsolarPoint();
+          updateSubsolarHorizon();
           // 更新同经线
           if (sameMeridianGroup.visible) updateSameMeridian();
           updateDate(newDec);
@@ -2755,8 +3062,10 @@
           celestialGroup.rotation.y -= speedRad;
           // 天球转动后太阳位置变化，更新光照方向
           updateSunLightPosition();
+          updateSunlightArrow();
           // 更新直射点
           updateSubsolarPoint();
+          updateSubsolarHorizon();
         }
       }
 
