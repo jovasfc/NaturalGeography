@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>冷锋活动三维演示</title>
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body { overflow: hidden; background: #1a1a2e; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; }
+		canvas { display: block; }
+
+		/* 顶部标题栏 */
+		#title-bar {
+			position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+			background: rgba(0,0,0,0.7); backdrop-filter: blur(10px);
+			color: #fff; padding: 10px 28px; border-radius: 30px;
+			font-size: 20px; font-weight: bold; letter-spacing: 2px;
+			z-index: 10; pointer-events: none;
+			border: 1px solid rgba(255,255,255,0.15);
+		}
+
+		/* 图例面板 */
+		#legend {
+			position: absolute; bottom: 24px; left: 24px;
+			background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+			color: #fff; padding: 16px 20px; border-radius: 12px;
+			font-size: 13px; z-index: 10; line-height: 2;
+			border: 1px solid rgba(255,255,255,0.1);
+			min-width: 180px;
+		}
+		#legend .dot {
+			display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+			margin-right: 8px; vertical-align: middle;
+		}
+
+		/* 控制面板 */
+		#controls {
+			position: absolute; bottom: 24px; right: 24px;
+			background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+			color: #fff; padding: 16px 20px; border-radius: 12px;
+			font-size: 13px; z-index: 10;
+			border: 1px solid rgba(255,255,255,0.1);
+		}
+		#controls button {
+			display: block; width: 100%; margin: 4px 0; padding: 8px 14px;
+			border: 1px solid rgba(255,255,255,0.25); border-radius: 6px;
+			background: rgba(255,255,255,0.1); color: #fff;
+			cursor: pointer; font-size: 13px; transition: all 0.3s;
+		}
+		#controls button:hover { background: rgba(255,255,255,0.25); }
+		#controls button.active { background: #4a90d9; border-color: #4a90d9; }
+		#controls button.mode-btn { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+		#controls button.mode-btn.active { background: #d9743a; border-color: #d9743a; }
+
+		/* 提示 */
+		#hint {
+			position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+			color: rgba(255,255,255,0.5); font-size: 12px;
+			z-index: 10; pointer-events: none;
+		}
+
+		/* 地点信息面板 */
+		#info-panel {
+			position: absolute; top: 16px; left: 16px;
+			background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+			color: #fff; padding: 16px 20px; border-radius: 12px;
+			font-size: 13px; z-index: 10; line-height: 1.8;
+			border: 1px solid rgba(255,255,255,0.15);
+			min-width: 220px; max-width: 280px;
+			display: none;
+		}
+		#info-panel h3 {
+			font-size: 14px; margin-bottom: 8px; padding-bottom: 6px;
+			border-bottom: 1px solid rgba(255,255,255,0.15);
+		}
+		#info-panel .row { display: flex; justify-content: space-between; }
+		#info-panel .label { color: rgba(255,255,255,0.6); }
+		#info-panel .value { color: #fff; font-weight: bold; }
+		#info-panel .hint { color: rgba(255,255,255,0.4); font-size: 11px; margin-top: 8px; }
+	</style>
+</head>
+<body>
+
+	<div id="title-bar">锋面系统三维演示</div>
+
+	<div id="info-panel">
+		<h3>📍 地点1 信息</h3>
+		<div class="row"><span class="label">所属气团</span><span class="value" id="info-airmass-1">-</span></div>
+		<div class="row"><span class="label">气温</span><span class="value" id="info-temp-1">-</span></div>
+		<div class="row"><span class="label">气压</span><span class="value" id="info-pressure-1">-</span></div>
+		<div class="row"><span class="label">降水状况</span><span class="value" id="info-precip-1">-</span></div>
+		<hr style="border:0;border-top:1px solid rgba(255,255,255,0.15);margin:8px 0;">
+		<h3>📍 地点2 信息</h3>
+		<div class="row"><span class="label">所属气团</span><span class="value" id="info-airmass-2">-</span></div>
+		<div class="row"><span class="label">气温</span><span class="value" id="info-temp-2">-</span></div>
+		<div class="row"><span class="label">气压</span><span class="value" id="info-pressure-2">-</span></div>
+		<div class="row"><span class="label">降水状况</span><span class="value" id="info-precip-2">-</span></div>
+		<div class="hint">点击地面添加地点（最多2个）</div>
+	</div>
+
+	<div id="legend">
+		<div><span class="dot" style="background:#4a90d9;"></span>冷气团</div>
+		<div><span class="dot" style="background:#e8744b;"></span>暖气团</div>
+		<div><span class="dot" style="background:#ffcc00;"></span>锋面</div>
+		<div><span class="dot" style="background:#ff4444;"></span>锋线</div>
+		<div><span class="dot" style="background:rgba(200,200,220,0.8);"></span>积雨云</div>
+		<div><span class="dot" style="background:#66aaff;"></span>降水</div>
+	</div>
+
+	<div id="controls">
+		<button id="btn-cold-front" class="mode-btn active" title="冷锋模式">❄️ 冷锋</button>
+		<button id="btn-warm-front" class="mode-btn" title="暖锋模式">☀️ 暖锋</button>
+		<button id="btn-stationary" class="mode-btn" title="准静止锋模式">➖ 准静止锋</button>
+		<span style="display:inline-block;width:12px;"></span>
+		<button id="btn-play" title="播放/暂停动画">▶ 已暂停</button>
+		<button id="btn-advance" title="快进锋面移动">⏩ 快进锋面</button>
+		<button id="btn-toggle-cold" class="active" title="显示/隐藏冷气团">🧊 冷气团</button>
+		<button id="btn-toggle-warm" class="active" title="显示/隐藏暖气团">🔥 暖气团</button>
+		<button id="btn-reset" title="重置视角">🔄 重置视角</button>
+		<button id="btn-top" title="俯瞰视角">🔝 俯瞰</button>
+		<button id="btn-side" title="侧视视角">👁 侧视</button>
+		<button id="btn-locate" title="开启后点击地面添加地点">📍 添加地点</button>
+	</div>
+
+	<div id="hint">🖱 鼠标拖拽旋转 | 滚轮缩放 | 右键平移</div>
+
+	<script type="importmap">
+		{
+			"imports": {
+				"three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+				"three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+			}
+		}
+	</script>
+
+	<script type="module">
+		import * as THREE from 'three';
+		import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+		// ============ 基础场景 ============
+		const scene = new THREE.Scene();
+
+		// 渐变背景
+		const bgCanvas = document.createElement('canvas');
+		bgCanvas.width = 2; bgCanvas.height = 512;
+		const bgCtx = bgCanvas.getContext('2d');
+		const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 512);
+		bgGrad.addColorStop(0, '#0a0a1a');
+		bgGrad.addColorStop(0.4, '#1a2a4a');
+		bgGrad.addColorStop(0.7, '#2a3a5a');
+		bgGrad.addColorStop(1, '#1a2a3a');
+		bgCtx.fillStyle = bgGrad;
+		bgCtx.fillRect(0, 0, 2, 512);
+		const bgTex = new THREE.CanvasTexture(bgCanvas);
+		scene.background = bgTex;
+		scene.fog = new THREE.Fog(0x1a2a4a, 15, 50);
+
+		const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 100);
+		camera.position.set(8, 6, 12);
+		camera.lookAt(0, 1.5, 0);
+
+		const renderer = new THREE.WebGLRenderer({ antialias: true });
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		renderer.toneMapping = THREE.ACESFilmicToneMapping;
+		renderer.toneMappingExposure = 1.2;
+		document.body.appendChild(renderer.domElement);
+
+		const controls = new OrbitControls(camera, renderer.domElement);
+		controls.target.set(0, 1.5, 0);
+		controls.enableDamping = true;
+		controls.dampingFactor = 0.08;
+		controls.minDistance = 5;
+		controls.maxDistance = 25;
+		controls.maxPolarAngle = Math.PI * 0.75;
+		controls.update();
+
+		// ============ 光照 ============
+		const ambientLight = new THREE.AmbientLight(0x334466, 1.5);
+		scene.add(ambientLight);
+
+		const sunLight = new THREE.DirectionalLight(0xffeedd, 3);
+		sunLight.position.set(10, 15, 5);
+		sunLight.castShadow = true;
+		sunLight.shadow.mapSize.width = 2048;
+		sunLight.shadow.mapSize.height = 2048;
+		sunLight.shadow.camera.near = 0.5;
+		sunLight.shadow.camera.far = 60;
+		sunLight.shadow.camera.left = -15;
+		sunLight.shadow.camera.right = 15;
+		sunLight.shadow.camera.top = 15;
+		sunLight.shadow.camera.bottom = -5;
+		sunLight.shadow.bias = -0.0001;
+		scene.add(sunLight);
+
+		const fillLight = new THREE.DirectionalLight(0x8899cc, 0.8);
+		fillLight.position.set(-5, 2, -3);
+		scene.add(fillLight);
+
+		// ============ 地面 ============
+		const groundGeo = new THREE.PlaneGeometry(20, 20);
+		const groundMat = new THREE.MeshStandardMaterial({
+			color: 0x3a5a3a, roughness: 0.9, metalness: 0.05
+		});
+		const ground = new THREE.Mesh(groundGeo, groundMat);
+		ground.rotation.x = -Math.PI / 2;
+		ground.position.y = -0.05;
+		ground.receiveShadow = true;
+		scene.add(ground);
+
+		// 网格地面参考线
+		const gridHelper = new THREE.PolarGridHelper(10, 32, 24, 64, 0x335533, 0x335533);
+		gridHelper.position.y = 0.01;
+		scene.add(gridHelper);
+
+		// ============ 冷气团（蓝色楔形） ============
+		// 冷气团：左侧厚，向右逐渐变薄，呈楔形插入暖气团下方
+		const coldAirGroup = new THREE.Group();
+		scene.add(coldAirGroup);
+
+		// 主体：使用自定义形状
+		function createColdAirShape() {
+			const shape = new THREE.Shape();
+			// 冷气团截面：左侧高，向右逐渐降低
+			shape.moveTo(-5, 0);
+			shape.lineTo(-3.5, 3.5);
+			shape.bezierCurveTo(-2, 4.2, 0, 3.0, 3, 0.5);
+			shape.lineTo(3, 0);
+			shape.closePath();
+			return shape;
+		}
+
+		const coldShape = createColdAirShape();
+		const extrudeSettings = { steps: 1, depth: 5, bevelEnabled: true, bevelThickness: 0.3, bevelSize: 0.3, bevelSegments: 3 };
+		const coldGeo = new THREE.ExtrudeGeometry(coldShape, extrudeSettings);
+		coldGeo.translate(0, 0, -2.5);
+
+		const coldMat = new THREE.MeshPhysicalMaterial({
+			color: 0x4a90d9,
+			metalness: 0.05,
+			roughness: 0.4,
+			transparent: true,
+			opacity: 0.3,
+			clearcoat: 0.1,
+			side: THREE.DoubleSide,
+			depthWrite: true
+		});
+		const coldMesh = new THREE.Mesh(coldGeo, coldMat);
+		coldMesh.castShadow = true;
+		coldMesh.receiveShadow = true;
+		coldAirGroup.add(coldMesh);
+
+		// 冷气团动画粒子：蓝色，沿地面右移→到锋线消失→左侧重生
+		const coldFlowCount = 400;
+		const coldFlowGeo = new THREE.BufferGeometry();
+		const coldFlowPositions = new Float32Array(coldFlowCount * 3);
+		const coldFlowData = new Float32Array(coldFlowCount); // progress
+
+		function resetColdParticle(i) {
+			const x = -5 + Math.random() * 3; // -5 to -2
+			const z = -2 + Math.random() * 4;
+			const y = 0.08 + Math.random() * 0.2;
+			coldFlowPositions[i * 3] = x;
+			coldFlowPositions[i * 3 + 1] = y;
+			coldFlowPositions[i * 3 + 2] = z;
+			coldFlowData[i] = Math.random();
+		}
+
+		for (let i = 0; i < coldFlowCount; i++) {
+			resetColdParticle(i);
+		}
+		coldFlowGeo.setAttribute('position', new THREE.BufferAttribute(coldFlowPositions, 3));
+		const coldFlowMat = new THREE.PointsMaterial({
+			color: 0x3388ff,
+			size: 0.07,
+			transparent: true,
+			opacity: 0.8,
+			blending: THREE.AdditiveBlending,
+			depthWrite: false
+		});
+		const coldFlowParticles = new THREE.Points(coldFlowGeo, coldFlowMat);
+		coldAirGroup.add(coldFlowParticles);
+
+		let frontSlopeFactor = 1.0; // 冷锋>1(陡)，暖锋<1(缓)
+		function getColdAirHeight(x) {
+			if (x <= -3.5) return 3.5 * frontSlopeFactor;
+			if (x >= 3) return 0.5 * frontSlopeFactor;
+			// 贝塞尔曲线近似
+			const t = (x + 3.5) / 6.5;
+			const h = 3.5 * (1 - t) * (1 - t) * (1 - t) + 4.0 * 3 * (1 - t) * (1 - t) * t + 3.0 * 3 * (1 - t) * t * t + 0.5 * t * t * t;
+			return h * frontSlopeFactor;
+		}
+
+		// 冷气团蓝色边框线
+		const coldEdgeGeo = new THREE.BufferGeometry();
+		const coldEdgePts = [];
+		const coldEdgeN = 60;
+		for (let i = 0; i <= coldEdgeN; i++) {
+			const x = -5 + (i / coldEdgeN) * 8;
+			const y = getColdAirHeight(x);
+			coldEdgePts.push(new THREE.Vector3(x, y, -2.5));
+			coldEdgePts.push(new THREE.Vector3(x, y, 2.5));
+		}
+		// 前面和后面的边缘线
+		for (const z of [-2.5, 2.5]) {
+			const linePts = [];
+			for (let i = 0; i <= coldEdgeN; i++) {
+				const x = -5 + (i / coldEdgeN) * 8;
+				const y = getColdAirHeight(x);
+				linePts.push(new THREE.Vector3(x, y, z));
+			}
+			const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
+			const lineMat = new THREE.LineBasicMaterial({ color: 0x2266cc, transparent: true, opacity: 0.6 });
+			coldAirGroup.add(new THREE.Line(lineGeo, lineMat));
+		}
+
+		// ============ 暖气团（红色/橙色，位于冷气团上方） ============
+		const warmAirGroup = new THREE.Group();
+		scene.add(warmAirGroup);
+
+		// 暖气团底部跟随冷气团顶部（锋面），向上延伸
+		function createWarmAirShape() {
+			const shape = new THREE.Shape();
+			const warmBottomN = 40;
+			// 暖气团底部：从 x=-1 开始沿冷气团顶部曲线到 x=5
+			shape.moveTo(-1, getColdAirHeight(-1));
+			for (let i = 0; i <= warmBottomN; i++) {
+				const x = -1 + (i / warmBottomN) * 6; // -1 to 5
+				shape.lineTo(x, getColdAirHeight(Math.min(x, 3)));
+			}
+			// 暖气团顶部：右侧高，弧形
+			shape.bezierCurveTo(4.5, 6.5, 2, 6.5, -1, 5.0);
+			shape.closePath();
+			return shape;
+		}
+
+		const warmShape = createWarmAirShape();
+		const warmGeo = new THREE.ExtrudeGeometry(warmShape, { steps: 1, depth: 5, bevelEnabled: true, bevelThickness: 0.2, bevelSize: 0.2, bevelSegments: 3 });
+		warmGeo.translate(0, 0, -2.5);
+
+		const warmMat = new THREE.MeshPhysicalMaterial({
+			color: 0xe8744b,
+			metalness: 0.05,
+			roughness: 0.4,
+			transparent: true,
+			opacity: 0.25,
+			side: THREE.DoubleSide,
+			depthWrite: true
+		});
+		const warmMesh = new THREE.Mesh(warmGeo, warmMat);
+		warmMesh.castShadow = true;
+		warmMesh.receiveShadow = true;
+		warmAirGroup.add(warmMesh);
+
+		// 动画状态 - 锋线偏移量（需在粒子初始化前声明）
+		let frontOffset = 0;
+
+		// 暖气团动画粒子：红色，从锋线沿锋面向体积云移动→到云层消失→重生
+		const warmFlowCount = 500;
+		const warmFlowGeo = new THREE.BufferGeometry();
+		const warmFlowPositions = new Float32Array(warmFlowCount * 3);
+		const warmFlowData = new Float32Array(warmFlowCount * 2); // [progress, speed]
+
+		function resetWarmParticle(i) {
+			// 从当前锋线位置沿锋面出发（世界坐标）
+			const x = 3 + frontOffset;
+			const z = -2 + Math.random() * 4;
+			const y = getColdAirHeight(3) + 0.6;
+			warmFlowPositions[i * 3] = x;
+			warmFlowPositions[i * 3 + 1] = y;
+			warmFlowPositions[i * 3 + 2] = z;
+			warmFlowData[i * 2] = 0; // progress: 0 at start
+			warmFlowData[i * 2 + 1] = 0.3 + Math.random() * 0.7; // random speed
+		}
+
+		for (let i = 0; i < warmFlowCount; i++) {
+			resetWarmParticle(i);
+		}
+		warmFlowGeo.setAttribute('position', new THREE.BufferAttribute(warmFlowPositions, 3));
+		const warmFlowMat = new THREE.PointsMaterial({
+			color: 0xff4433,
+			size: 0.07,
+			transparent: true,
+			opacity: 0.8,
+			blending: THREE.AdditiveBlending,
+			depthWrite: false
+		});
+		const warmFlowParticles = new THREE.Points(warmFlowGeo, warmFlowMat);
+		scene.add(warmFlowParticles);
+
+		// 暖气团顶部边框线
+		for (const z of [-2.5, 2.5]) {
+			const linePts = [];
+			const edgeN = 40;
+			for (let i = 0; i <= edgeN; i++) {
+				const x = -1 + (i / edgeN) * 6;
+				const t = (x + 1) / 6;
+				// 顶部曲线
+				const topY = 5.0 + 1.5 * t * (1 - t) * 4;
+				linePts.push(new THREE.Vector3(x, topY, z));
+			}
+			const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
+			const lineMat = new THREE.LineBasicMaterial({ color: 0xcc6644, transparent: true, opacity: 0.6 });
+			warmAirGroup.add(new THREE.Line(lineGeo, lineMat));
+		}
+
+		// ============ 锋面（冷暖气团交界面，跟随冷气团顶端曲面） ============
+		const frontalGroup = new THREE.Group();
+		scene.add(frontalGroup);
+
+		// 锋面曲面：使用 BufferGeometry 手动构建，y值由 getColdAirHeight 确定
+		const frontalSegW = 64;  // x方向分段
+		const frontalSegD = 32;  // z方向分段
+		const frontalStartX = -3.5;
+		const frontalEndX = 3;
+		const frontalStartZ = -2.5;
+		const frontalEndZ = 2.5;
+
+		const frontalVertices = [];
+		const frontalIndices = [];
+		const frontalUVs = [];
+
+		for (let iz = 0; iz <= frontalSegD; iz++) {
+			const z = frontalStartZ + (iz / frontalSegD) * (frontalEndZ - frontalStartZ);
+			for (let ix = 0; ix <= frontalSegW; ix++) {
+				const x = frontalStartX + (ix / frontalSegW) * (frontalEndX - frontalStartX);
+				const y = getColdAirHeight(x) + 0.03;
+				frontalVertices.push(x, y, z);
+				frontalUVs.push(ix / frontalSegW, iz / frontalSegD);
+			}
+		}
+
+		for (let iz = 0; iz < frontalSegD; iz++) {
+			for (let ix = 0; ix < frontalSegW; ix++) {
+				const a = iz * (frontalSegW + 1) + ix;
+				const b = a + 1;
+				const c = a + (frontalSegW + 1);
+				const d = c + 1;
+				frontalIndices.push(a, b, d);
+				frontalIndices.push(a, d, c);
+			}
+		}
+
+		const frontalGeo = new THREE.BufferGeometry();
+		frontalGeo.setAttribute('position', new THREE.Float32BufferAttribute(frontalVertices, 3));
+		frontalGeo.setAttribute('uv', new THREE.Float32BufferAttribute(frontalUVs, 2));
+		frontalGeo.setIndex(frontalIndices);
+		frontalGeo.computeVertexNormals();
+
+		const frontalMat = new THREE.MeshPhysicalMaterial({
+			color: 0xffcc00,
+			metalness: 0.0,
+			roughness: 0.5,
+			transparent: true,
+			opacity: 0.5,
+			side: THREE.DoubleSide,
+			depthWrite: true,
+			emissive: 0x332200,
+			emissiveIntensity: 0.3
+		});
+		const frontalMesh = new THREE.Mesh(frontalGeo, frontalMat);
+		frontalMesh.renderOrder = 1;
+		frontalMesh.material.depthTest = true;
+		frontalGroup.add(frontalMesh);
+
+		// 锋面边框线（加粗的边界）
+		const edgeYOffset = 0.05;
+		for (const z of [frontalStartZ, frontalEndZ]) {
+			const edgePts = [];
+			for (let ix = 0; ix <= frontalSegW; ix++) {
+				const x = frontalStartX + (ix / frontalSegW) * (frontalEndX - frontalStartX);
+				edgePts.push(new THREE.Vector3(x, getColdAirHeight(x) + edgeYOffset, z));
+			}
+			const edgeGeo = new THREE.BufferGeometry().setFromPoints(edgePts);
+			const edgeMat = new THREE.LineBasicMaterial({ color: 0xcc8800, transparent: true, opacity: 0.7 });
+			frontalGroup.add(new THREE.Line(edgeGeo, edgeMat));
+		}
+
+		// ============ 锋线（地面上的线） ============
+		const frontalLineGroup = new THREE.Group();
+		scene.add(frontalLineGroup);
+
+		// 主线：锋线在冷气团前缘与地面交界处 (x=3, y=0)
+		const frontalLineX = 3; // 冷气团右缘，暖气团底部与冷气团在地面的分界
+		const frontalLineGeo = new THREE.BufferGeometry();
+		const frontalLinePts = [];
+		for (let z = -2.5; z <= 2.5; z += 0.05) {
+			frontalLinePts.push(new THREE.Vector3(frontalLineX, 0.08, z));
+		}
+		frontalLineGeo.setFromPoints(frontalLinePts);
+		const frontalLineMat = new THREE.LineBasicMaterial({
+			color: 0xff4444, linewidth: 2, transparent: true, opacity: 0.9, depthTest: true
+		});
+		const frontalLine = new THREE.Line(frontalLineGeo, frontalLineMat);
+		frontalLineGroup.add(frontalLine);
+
+		// 锋线发光管
+		const tubeGeo = new THREE.CylinderGeometry(0.06, 0.06, 5, 16);
+		const tubeMat = new THREE.MeshStandardMaterial({
+			color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 1.5, roughness: 0.3
+		});
+		const tube = new THREE.Mesh(tubeGeo, tubeMat);
+		tube.rotation.x = Math.PI / 2;
+		tube.position.set(frontalLineX, 0.12, 0);
+		tube.castShadow = true;
+		frontalLineGroup.add(tube);
+
+		// 锋线脉冲光环
+		const pulseRingGeo = new THREE.TorusGeometry(0.15, 0.03, 8, 16);
+		const pulseRingMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.7 });
+		const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
+		pulseRing.position.set(frontalLineX, 0.12, 0);
+		pulseRing.rotation.x = Math.PI / 2;
+		frontalLineGroup.add(pulseRing);
+
+		// ============ 积雨云（体积云效果） ============
+		const cloudGroup = new THREE.Group();
+		scene.add(cloudGroup);
+
+		function createCloudCluster(cx, cy, cz, scale, count) {
+			const cluster = new THREE.Group();
+			for (let i = 0; i < count; i++) {
+				const r = (0.08 + Math.random() * 0.22 * scale) * 0.9;
+				const geo = new THREE.SphereGeometry(r, 16, 14);
+				const mat = new THREE.MeshStandardMaterial({
+					color: new THREE.Color().setHSL(0.6, 0.05, 0.74 + Math.random() * 0.21),
+					roughness: 0.95,
+					metalness: 0.0,
+					transparent: true,
+					opacity: 0.45 + Math.random() * 0.3,
+					depthWrite: false
+				});
+				const sphere = new THREE.Mesh(geo, mat);
+				sphere.position.set(
+					(Math.random() - 0.5) * 1.7 * scale,
+					(Math.random() - 0.5) * 1.8 * scale,
+					(Math.random() - 0.5) * 1.7 * scale
+				);
+				sphere.castShadow = true;
+				sphere.receiveShadow = true;
+				cluster.add(sphere);
+			}
+			cluster.position.set(cx, cy, cz);
+			return cluster;
+		}
+
+		// 多个云团沿锋面分布，y坐标在锋面上方，向锋线方向扩展
+		const cloudConfigs = [
+			{ x: -1.5, yOff: 1.6, z: -1.5, s: 1.2, n: 90 },
+			{ x: -0.5, yOff: 1.9, z: 0, s: 1.5, n: 126 },
+			{ x: -2.0, yOff: 1.4, z: 1.5, s: 1.0, n: 72 },
+			{ x: 0.0, yOff: 2.2, z: -1.0, s: 1.3, n: 108 },
+			{ x: -1.0, yOff: 1.8, z: 1.0, s: 1.1, n: 79 },
+			{ x: -2.5, yOff: 1.2, z: 0, s: 0.9, n: 65 },
+			{ x: 0.5, yOff: 2.0, z: -0.5, s: 1.0, n: 72 },
+			{ x: 1.5, yOff: 1.8, z: 0.8, s: 1.1, n: 86 },
+			{ x: 2.2, yOff: 1.6, z: -0.8, s: 0.9, n: 65 },
+			{ x: 1.0, yOff: 1.9, z: 1.5, s: 1.0, n: 72 },
+			{ x: -1.5, yOff: 0.6, z: -1.0, s: 1.0, n: 54 },
+			{ x: -0.5, yOff: 0.7, z: 0.5, s: 1.1, n: 63 },
+			{ x: 0.3, yOff: 0.8, z: -1.2, s: 0.9, n: 50 },
+			{ x: -2.2, yOff: 0.4, z: 0.8, s: 0.8, n: 45 },
+		];
+
+		const cloudClusters = [];
+		cloudConfigs.forEach(cfg => {
+			const cluster = createCloudCluster(cfg.x, getColdAirHeight(cfg.x) + cfg.yOff, cfg.z, cfg.s, cfg.n);
+			cloudGroup.add(cluster);
+			cloudClusters.push(cluster);
+		});
+
+		// ============ 降水粒子系统 ============
+		const rainGroup = new THREE.Group();
+		scene.add(rainGroup);
+
+		const rainCount = 1500;
+		const rainGeo = new THREE.BufferGeometry();
+		const rainPositionsArr = new Float32Array(rainCount * 3);
+		const rainVelocities = new Float32Array(rainCount);
+
+		// 降水区域：在积雨云下方，从云底落到地面
+		for (let i = 0; i < rainCount; i++) {
+			const x = -2.5 + Math.random() * 3.5;
+			const z = -2 + Math.random() * 4;
+			// 在云底到地面之间随机分布
+			const cloudBaseY = getColdAirHeight(Math.min(x, 3)) + 0.8;
+			const y = 0.1 + Math.random() * (cloudBaseY - 0.1);
+			rainPositionsArr[i * 3] = x;
+			rainPositionsArr[i * 3 + 1] = y;
+			rainPositionsArr[i * 3 + 2] = z;
+			rainVelocities[i] = 1.5 + Math.random() * 3;
+		}
+		rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositionsArr, 3));
+
+		const rainMat = new THREE.PointsMaterial({
+			color: 0x4488cc,
+			size: 0.04,
+			transparent: true,
+			opacity: 0.7,
+			blending: THREE.AdditiveBlending,
+			depthWrite: false
+		});
+		const rain = new THREE.Points(rainGeo, rainMat);
+		rainGroup.add(rain);
+
+		// 更密集的近地面雨滴
+		const heavyRainCount = 500;
+		const heavyRainGeo = new THREE.BufferGeometry();
+		const heavyRainPositions = new Float32Array(heavyRainCount * 3);
+		const heavyRainVelocities = new Float32Array(heavyRainCount);
+		for (let i = 0; i < heavyRainCount; i++) {
+			const x = -2.5 + Math.random() * 3.5;
+			const z = -2 + Math.random() * 4;
+			const cloudBaseY = getColdAirHeight(Math.min(x, 3)) + 0.8;
+			heavyRainPositions[i * 3] = x;
+			heavyRainPositions[i * 3 + 1] = 0.1 + Math.random() * (cloudBaseY * 0.6);
+			heavyRainPositions[i * 3 + 2] = z;
+			heavyRainVelocities[i] = 2 + Math.random() * 4;
+		}
+		heavyRainGeo.setAttribute('position', new THREE.BufferAttribute(heavyRainPositions, 3));
+		const heavyRainMat = new THREE.PointsMaterial({
+			color: 0x6699dd,
+			size: 0.03,
+			transparent: true,
+			opacity: 0.6,
+			blending: THREE.AdditiveBlending,
+			depthWrite: false
+		});
+		const heavyRain = new THREE.Points(heavyRainGeo, heavyRainMat);
+		rainGroup.add(heavyRain);
+
+		// ============ 箭头标注 ============
+		function createArrow(from, to, color, headLength, headWidth) {
+			const dir = new THREE.Vector3().subVectors(to, from);
+			const length = dir.length();
+			const arrow = new THREE.ArrowHelper(
+				dir.normalize(), from, length, color, headLength || 0.4, headWidth || 0.2
+			);
+			return arrow;
+		}
+
+		// 冷气团箭头：沿地面指向锋线
+		const coldArrowStartX = -4.5;
+		const coldArrowEndX = 2.0;
+		const coldArrow1 = createArrow(
+			new THREE.Vector3(coldArrowStartX, 0.2, 0),
+			new THREE.Vector3(coldArrowEndX, 0.2, 0),
+			0x3388ff, 0.4, 0.22
+		);
+		scene.add(coldArrow1);
+
+		const coldArrow2 = createArrow(
+			new THREE.Vector3(coldArrowStartX, 0.2, -1.5),
+			new THREE.Vector3(coldArrowEndX, 0.2, -1.5),
+			0x3388ff, 0.4, 0.22
+		);
+		scene.add(coldArrow2);
+
+		const coldArrow3 = createArrow(
+			new THREE.Vector3(coldArrowStartX, 0.2, 1.5),
+			new THREE.Vector3(coldArrowEndX, 0.2, 1.5),
+			0x3388ff, 0.4, 0.22
+		);
+		scene.add(coldArrow3);
+
+		// 暖气团上升箭头：与红色粒子起点终点一致，倾斜与锋面完全一致
+		const warmArrowStartX = 3;
+		const warmArrowEndX = -0.5;
+		const warmArrows = [];
+		function rebuildWarmArrows() {
+			warmArrows.forEach(a => scene.remove(a));
+			warmArrows.length = 0;
+			const sy = getColdAirHeight(warmArrowStartX) + 0.6;
+			const ey = sy + (getColdAirHeight(warmArrowEndX) - getColdAirHeight(warmArrowStartX));
+			for (const z of [0, -1.2, 1.2]) {
+				const a = createArrow(
+					new THREE.Vector3(warmArrowStartX, sy, z),
+					new THREE.Vector3(warmArrowEndX, ey, z),
+					0xff4433, 0.45, 0.22
+				);
+				scene.add(a);
+				warmArrows.push(a);
+			}
+		}
+		rebuildWarmArrows();
+
+		// ============ 文字标签（使用sprite） ============
+		function createLabel(text, color, fontSize) {
+			const canvas = document.createElement('canvas');
+			canvas.width = 512; canvas.height = 128;
+			const ctx = canvas.getContext('2d');
+			ctx.font = `bold ${fontSize || 48}px "Microsoft YaHei","PingFang SC",sans-serif`;
+			ctx.fillStyle = color;
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(text, 256, 64);
+			const tex = new THREE.CanvasTexture(canvas);
+			tex.minFilter = THREE.LinearFilter;
+			const spriteMat = new THREE.SpriteMaterial({
+				map: tex, transparent: true, depthTest: false, depthWrite: false
+			});
+			const sprite = new THREE.Sprite(spriteMat);
+			sprite.scale.set(3, 0.75, 1);
+			return sprite;
+		}
+
+		const labelCold = createLabel('冷气团', '#88bbff', 52);
+		labelCold.position.set(-2.5, 2.2, 3.5);
+		scene.add(labelCold);
+
+		const labelWarm = createLabel('暖气团', '#ffaa88', 52);
+		labelWarm.position.set(2.5, 3.0, 3.5);
+		scene.add(labelWarm);
+
+		const labelFront = createLabel('锋面', '#ffcc00', 40);
+		labelFront.position.set(-0.5, 2.8, 3.5);
+		scene.add(labelFront);
+
+		const labelFrontLine = createLabel('锋线', '#ff4444', 40);
+		labelFrontLine.position.set(3, 0.6, 3.5);
+		scene.add(labelFrontLine);
+
+		const labelCloud = createLabel('积雨云', '#ccccdd', 40);
+		labelCloud.position.set(-0.5, 6.0, 3.5);
+		scene.add(labelCloud);
+
+		// ============ 动画状态 ============
+		let isPlaying = false;
+		let showColdAir = true;
+		let showWarmAir = true;
+		let frontMode = 'cold'; // 'cold' | 'warm' | 'stationary'
+		let stationaryPhase = 0; // 准静止锋来回摆动相位
+		const clock = new THREE.Clock();
+
+		// ============ 按钮事件 ============
+		document.getElementById('btn-play').addEventListener('click', function() {
+			isPlaying = !isPlaying;
+			this.textContent = isPlaying ? '⏯ 播放中' : '▶ 已暂停';
+			this.classList.toggle('active', isPlaying);
+		});
+
+		document.getElementById('btn-advance').addEventListener('click', function() {
+			if (frontMode === 'cold') {
+				frontOffset += 0.3;
+				if (frontOffset > 3) frontOffset = -1;
+			} else if (frontMode === 'warm') {
+				frontOffset -= 0.3;
+				if (frontOffset < -3) frontOffset = 1;
+			} else {
+				stationaryPhase += 0.5;
+				frontOffset = Math.sin(stationaryPhase) * 0.6;
+			}
+			updateFrontPosition();
+		});
+
+		document.getElementById('btn-toggle-cold').addEventListener('click', function() {
+			showColdAir = !showColdAir;
+			coldAirGroup.visible = showColdAir;
+			this.classList.toggle('active', showColdAir);
+			this.textContent = showColdAir ? '🧊 冷气团' : '🧊 冷气团(隐藏)';
+		});
+
+		document.getElementById('btn-toggle-warm').addEventListener('click', function() {
+			showWarmAir = !showWarmAir;
+			warmAirGroup.visible = showWarmAir;
+			this.classList.toggle('active', showWarmAir);
+			this.textContent = showWarmAir ? '🔥 暖气团' : '🔥 暖气团(隐藏)';
+		});
+
+		document.getElementById('btn-reset').addEventListener('click', function() {
+			camera.position.set(8, 6, 12);
+			controls.target.set(0, 1.5, 0);
+			controls.update();
+		});
+
+		document.getElementById('btn-top').addEventListener('click', function() {
+			camera.position.set(0, 14, 0.5);
+			controls.target.set(0, 1.5, 0);
+			controls.update();
+		});
+
+		document.getElementById('btn-side').addEventListener('click', function() {
+			camera.position.set(12, 2, 0);
+			controls.target.set(0, 1.5, 0);
+			controls.update();
+		});
+
+		// ============ 锋面模式切换 ============
+		function setFrontMode(mode) {
+			frontMode = mode;
+			frontOffset = 0;
+			stationaryPhase = 0;
+			// 冷锋坡度大，暖锋/准静止锋坡度小
+			frontSlopeFactor = mode === 'cold' ? 1.2 : (mode === 'warm' ? 0.9 : 1.05);
+			coldAirGroup.scale.y = frontSlopeFactor;
+			frontalGroup.scale.y = frontSlopeFactor;
+			// 暖锋/准静止锋云层薄而宽且更小，冷锋云层厚而窄
+			const isWide = mode !== 'cold';
+			cloudGroup.scale.set(
+				isWide ? 1.35 : 1.2,
+				isWide ? 0.72 : 1,
+				isWide ? 0.9 : 1.2
+			);
+			// 云团重新定位，暖锋/准静止锋隐藏约10%的云团
+			cloudClusters.forEach((cluster, i) => {
+				const cfg = cloudConfigs[i];
+				cluster.position.y = getColdAirHeight(cfg.x) + cfg.yOff;
+				cluster.visible = !(isWide && (i === 12 || i === 13));
+			});
+			// 重建暖气团箭头
+			rebuildWarmArrows();
+			document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+			if (mode === 'cold') {
+				document.getElementById('btn-cold-front').classList.add('active');
+			} else if (mode === 'warm') {
+				document.getElementById('btn-warm-front').classList.add('active');
+			} else {
+				document.getElementById('btn-stationary').classList.add('active');
+			}
+			updateFrontPosition();
+		}
+		document.getElementById('btn-cold-front').addEventListener('click', () => setFrontMode('cold'));
+		document.getElementById('btn-warm-front').addEventListener('click', () => setFrontMode('warm'));
+		document.getElementById('btn-stationary').addEventListener('click', () => setFrontMode('stationary'));
+
+		document.getElementById('btn-locate').addEventListener('click', function() {
+			locateMode = !locateMode;
+			this.classList.toggle('active', locateMode);
+			this.textContent = locateMode ? '📍 添加地点(开)' : '📍 添加地点';
+		});
+
+		// ============ 地面点击：添加地点标记并显示信息 ============
+		const raycaster = new THREE.Raycaster();
+		const pointer = new THREE.Vector2();
+		const locationMarkers = [null, null]; // 2个标记
+		const markerWorldX = [null, null]; // 各标记的世界x坐标
+		let locateMode = false; // 添加地点模式
+		let nextMarkerSlot = 0; // 下一个填充的槽位（0或1）
+
+		// 判断某 x 坐标（世界坐标）属于哪个气团
+		function classifyLocation(worldX) {
+			const frontLineX = 3 + frontOffset; // 锋线位置
+			const distToFront = worldX - frontLineX;
+			if (Math.abs(distToFront) < 0.5) {
+				return 'front';
+			}
+			if (distToFront < 0) {
+				return 'cold';
+			}
+			return 'warm';
+		}
+
+		// 计算降水区域：锋面附近云雨区（世界坐标）
+		function isRainingAt(worldX) {
+			const frontLineX = 3 + frontOffset;
+			const cloudMinX = frontLineX - 3.5;
+			const cloudMaxX = frontLineX;
+			return worldX >= cloudMinX && worldX <= cloudMaxX;
+		}
+
+		function updateInfoPanel(worldX, slot) {
+			const zone = classifyLocation(worldX);
+			const raining = isRainingAt(worldX);
+			const panel = document.getElementById('info-panel');
+			panel.style.display = 'block';
+
+			const key = zone + (raining ? '_r' : '_n');
+			if (panel.dataset['lastKey' + slot] === key) return;
+			panel.dataset['lastKey' + slot] = key;
+
+			let airmass, temp, pressure, precip;
+			if (zone === 'cold') {
+				airmass = '冷气团';
+				temp = '8 °C';
+				pressure = '1020 hPa';
+				precip = raining ? '阵雨' : '无';
+			} else if (zone === 'warm') {
+				airmass = '暖气团';
+				temp = '18 °C';
+				pressure = '1010 hPa';
+				precip = '无';
+			} else {
+				airmass = '锋面区';
+				temp = '13 °C';
+				pressure = '1015 hPa';
+				precip = '强降水';
+			}
+			document.getElementById('info-airmass-' + slot).textContent = airmass;
+			document.getElementById('info-temp-' + slot).textContent = temp;
+			document.getElementById('info-pressure-' + slot).textContent = pressure;
+			document.getElementById('info-precip-' + slot).textContent = precip;
+		}
+
+		function createMarker(point, color) {
+			const markerGeo = new THREE.ConeGeometry(0.25, 0.8, 8);
+			const markerMat = new THREE.MeshStandardMaterial({ color: color, emissive: color });
+			const m = new THREE.Mesh(markerGeo, markerMat);
+			m.position.set(point.x, 0.4, point.z);
+			m.rotation.x = Math.PI;
+			return m;
+		}
+
+		renderer.domElement.addEventListener('click', function(event) {
+			if (!locateMode) return;
+			if (event.target.tagName !== 'CANVAS') return;
+			const rect = renderer.domElement.getBoundingClientRect();
+			pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+			pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+			raycaster.setFromCamera(pointer, camera);
+			const intersects = raycaster.intersectObject(ground);
+			if (intersects.length > 0) {
+				const pt = intersects[0].point;
+				// 移除当前槽位旧标记
+				if (locationMarkers[nextMarkerSlot]) scene.remove(locationMarkers[nextMarkerSlot]);
+				// 创建新标记（槽位0红色，槽位1黄色）
+				const color = nextMarkerSlot === 0 ? 0xff3333 : 0xffcc00;
+				locationMarkers[nextMarkerSlot] = createMarker(pt, color);
+				scene.add(locationMarkers[nextMarkerSlot]);
+				markerWorldX[nextMarkerSlot] = pt.x;
+				document.getElementById('info-panel').dataset['lastKey' + (nextMarkerSlot + 1)] = '';
+				updateInfoPanel(markerWorldX[nextMarkerSlot], nextMarkerSlot + 1);
+				// 轮换槽位
+				nextMarkerSlot = nextMarkerSlot === 0 ? 1 : 0;
+			}
+		});
+
+		function updateFrontPosition() {
+			const offset = frontOffset;
+			coldAirGroup.position.x = offset;
+			frontalGroup.position.x = offset;
+			frontalLineGroup.position.x = offset;
+			cloudGroup.position.x = offset;
+			rainGroup.position.x = offset;
+			warmAirGroup.position.x = offset * 0.5;
+			// 箭头随气团移动（ArrowHelper的position已含原始x，需加上原始x偏移）
+			coldArrow1.position.x = coldArrowStartX + offset;
+			coldArrow2.position.x = coldArrowStartX + offset;
+			coldArrow3.position.x = coldArrowStartX + offset;
+			warmArrows.forEach(a => a.position.x = warmArrowStartX + offset);
+			// 标签
+			labelCold.position.x = -2.5 + offset;
+			labelFront.position.x = -0.5 + offset;
+			labelFrontLine.position.x = 3 + offset;
+			labelCloud.position.x = -0.5 + offset;
+			labelWarm.position.x = 2.5 + offset * 0.5;
+		}
+
+		// 初始化：应用冷锋坡度
+		setFrontMode('cold');
+
+		// ============ 渲染循环 ============
+		function animate(time) {
+			requestAnimationFrame(animate);
+
+			const dt = Math.min(clock.getDelta(), 0.1);
+
+			controls.update();
+
+			if (isPlaying) {
+			if (frontMode === 'cold') {
+				// 冷锋：向右移动（冷气团推动暖气团）
+				frontOffset += dt * 0.15;
+				if (frontOffset > 3) frontOffset = -1;
+			} else if (frontMode === 'warm') {
+				// 暖锋：向左移动（暖气团推动冷气团，方向相反）
+				frontOffset -= dt * 0.15;
+				if (frontOffset < -3) frontOffset = 1;
+			} else {
+				// 准静止锋：小幅来回摆动
+				stationaryPhase += dt * 0.5;
+				frontOffset = Math.sin(stationaryPhase) * 0.6;
+			}
+			updateFrontPosition();
+			// 实时刷新地点信息
+			for (let s = 0; s < 2; s++) {
+				if (markerWorldX[s] !== null) {
+					updateInfoPanel(markerWorldX[s], s + 1);
+				}
+			}
+		}
+
+			// ---- 冷气团粒子动画：沿地面右移 → 到锋线消失 → 重生 ----
+			const coldPos = coldFlowGeo.attributes.position;
+			for (let i = 0; i < coldFlowCount; i++) {
+				let progress = coldFlowData[i];
+				progress += dt * 0.8;
+				// 沿地面从 -5 移动到 3（锋线）
+				const newX = -5 + progress * 8;
+				coldPos.setX(i, newX);
+				coldPos.setY(i, 0.08 + Math.random() * 0.15);
+
+				if (newX >= 3) {
+					resetColdParticle(i);
+				} else {
+					coldFlowData[i] = progress;
+				}
+			}
+			coldFlowGeo.attributes.position.needsUpdate = true;
+
+			// ---- 暖气团粒子动画：从锋线沿锋面（与红色箭头方向一致）向体积云移动，到云层消失，重生 ----
+			const warmPos = warmFlowGeo.attributes.position;
+			for (let i = 0; i < warmFlowCount; i++) {
+				let progress = warmFlowData[i * 2];
+				const speed = warmFlowData[i * 2 + 1];
+				progress += dt * speed * 0.4;
+
+				// 从当前锋线沿锋面平行方向向左上方移动（世界坐标）
+				const startX = 3 + frontOffset;
+				const endX = -0.5 + frontOffset;
+				const t = progress;
+				const px = startX + t * (endX - startX);
+				// 严格沿锋面平行方向：dy = Δy锋面 * t
+				const frontalStartY = getColdAirHeight(3);
+				const frontalEndY = getColdAirHeight(-0.5);
+				const py = frontalStartY + 0.6 + t * (frontalEndY - frontalStartY);
+
+				warmPos.setX(i, px);
+				warmPos.setY(i, py);
+
+				if (progress >= 1) {
+					resetWarmParticle(i);
+				} else {
+					warmFlowData[i * 2] = progress;
+				}
+			}
+			warmFlowGeo.attributes.position.needsUpdate = true;
+
+			// ---- 降水粒子动画 ----
+			const rainPos = rain.geometry.attributes.position;
+			for (let i = 0; i < rainCount; i++) {
+				let y = rainPos.getY(i);
+				y -= rainVelocities[i] * dt;
+				if (y < 0.05) {
+					const rx = -2.5 + Math.random() * 3.5;
+					const cloudBaseY = getColdAirHeight(Math.min(rx, 3)) + 0.8;
+					y = cloudBaseY - Math.random() * 0.5;
+					rainPos.setX(i, rx);
+					rainPos.setZ(i, -2 + Math.random() * 4);
+				}
+				rainPos.setY(i, y);
+			}
+			rain.geometry.attributes.position.needsUpdate = true;
+
+			const heavyRainPos = heavyRain.geometry.attributes.position;
+			for (let i = 0; i < heavyRainCount; i++) {
+				let y = heavyRainPos.getY(i);
+				y -= heavyRainVelocities[i] * dt;
+				if (y < 0.05) {
+					const rx = -2.5 + Math.random() * 3.5;
+					const cloudBaseY = getColdAirHeight(Math.min(rx, 3)) + 0.8;
+					y = cloudBaseY * 0.5 + Math.random() * (cloudBaseY * 0.5);
+					heavyRainPos.setX(i, rx);
+					heavyRainPos.setZ(i, -2 + Math.random() * 4);
+				}
+				heavyRainPos.setY(i, y);
+			}
+			heavyRain.geometry.attributes.position.needsUpdate = true;
+
+			// ---- 锋线脉冲动画 ----
+			const pulse = 1 + Math.sin(time * 0.005) * 0.4;
+			pulseRing.scale.setScalar(pulse);
+			pulseRing.material.opacity = 0.3 + Math.sin(time * 0.005) * 0.4;
+
+			// ---- 云层微微浮动 ----
+			cloudClusters.forEach((cluster, i) => {
+				cluster.position.y += Math.sin(time * 0.002 + i) * 0.003;
+				cluster.children.forEach((child, j) => {
+					child.position.y += Math.sin(time * 0.003 + i + j) * 0.001;
+				});
+			});
+
+			renderer.render(scene, camera);
+		}
+
+		// ============ 窗口大小响应 ============
+		window.addEventListener('resize', () => {
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			renderer.setSize(window.innerWidth, window.innerHeight);
+		});
+
+		// ============ 启动 ============
+		requestAnimationFrame(animate);
+
+		console.log('冷锋活动三维演示已就绪');
+		console.log('🖱 鼠标拖拽旋转 | 滚轮缩放 | 右键平移');
+		console.log('蓝色粒子 = 冷气团流动 | 红色粒子 = 暖气团上升');
+		console.log('黄色曲面 = 锋面 | 红色线 = 锋线');
+		console.log('白色云团 = 积雨云 | 蓝色粒子 = 降水');
+		console.log('点击"冷气团"/"暖气团"按钮可隐藏气团，专注观察锋面');
+	</script>
+</body>
+</html>
