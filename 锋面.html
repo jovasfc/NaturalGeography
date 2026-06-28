@@ -77,6 +77,48 @@
 		#info-panel .label { color: rgba(255,255,255,0.6); }
 		#info-panel .value { color: #fff; font-weight: bold; }
 		#info-panel .hint { color: rgba(255,255,255,0.4); font-size: 11px; margin-top: 8px; }
+
+		/* 锋面对比对话框 */
+		#compare-overlay {
+			position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+			background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+			z-index: 100; display: none;
+			align-items: center; justify-content: center;
+		}
+		#compare-overlay.show { display: flex; }
+		#compare-dialog {
+			background: rgba(20,22,40,0.95); border: 1px solid rgba(255,255,255,0.2);
+			border-radius: 16px; padding: 30px 36px;
+			max-width: 820px; max-height: 85vh; overflow-y: auto;
+			color: #fff; font-size: 13px; line-height: 1.8;
+			box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+		}
+		#compare-dialog h2 {
+			text-align: center; font-size: 22px; margin-bottom: 20px;
+			letter-spacing: 3px; color: #fff;
+		}
+		#compare-dialog table {
+			width: 100%; border-collapse: collapse; margin-top: 10px;
+		}
+		#compare-dialog th, #compare-dialog td {
+			border: 1px solid rgba(255,255,255,0.15);
+			padding: 8px 12px; text-align: center; vertical-align: top;
+		}
+		#compare-dialog th {
+			background: rgba(255,255,255,0.08); font-weight: 600;
+		}
+		#compare-dialog th:first-child { width: 100px; }
+		#compare-dialog td:first-child {
+			text-align: left; font-weight: 600;
+			background: rgba(255,255,255,0.05); white-space: nowrap;
+		}
+		#compare-dialog .close-btn {
+			display: block; margin: 20px auto 0; padding: 8px 30px;
+			border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
+			background: rgba(255,255,255,0.1); color: #fff;
+			cursor: pointer; font-size: 14px; transition: all 0.3s;
+		}
+		#compare-dialog .close-btn:hover { background: rgba(255,255,255,0.25); }
 	</style>
 </head>
 <body>
@@ -120,9 +162,90 @@
 		<button id="btn-top" title="俯瞰视角">🔝 俯瞰</button>
 		<button id="btn-side" title="侧视视角">👁 侧视</button>
 		<button id="btn-locate" title="开启后点击地面添加地点">📍 添加地点</button>
+		<button id="btn-compare" title="锋面对比">📊 锋面对比</button>
 	</div>
 
 	<div id="hint">🖱 鼠标拖拽旋转 | 滚轮缩放 | 右键平移</div>
+
+	<!-- 锋面对比对话框 -->
+	<div id="compare-overlay">
+		<div id="compare-dialog">
+			<h2>锋面类型对比</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>特征</th>
+						<th>冷锋</th>
+						<th>暖锋</th>
+						<th>准静止锋</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>主导气团</td>
+						<td>冷气团主动推进</td>
+						<td>暖气团主动爬升</td>
+						<td>冷暖气团势力相当</br>或有地形阻碍冷气团南下</td>
+					</tr>
+					<tr>
+						<td>运动方向</td>
+						<td>冷气团向暖气团方向移动</td>
+						<td>暖气团向冷气团方向移动</td>
+						<td>来回摆动，移动缓慢</td>
+					</tr>
+					<tr>
+						<td>锋面坡度</td>
+						<td>较陡（1/50~1/100）</td>
+						<td>较缓（1/100~1/150）</td>
+						<td>更缓（约1/150~1/200）</td>
+					</tr>
+					<tr>
+						<td>暖气团运动</td>
+						<td>被迫抬升</td>
+						<td>主动爬升</td>
+						<td>缓慢爬升</td>
+					</tr>
+					<tr>
+						<td>云系类型</td>
+						<td>积雨云为主</td>
+						<td>层状云、卷云</td>
+						<td>层状云、层积云</td>
+					</tr>
+					<tr>
+						<td>云系范围</td>
+						<td>狭窄，沿锋线分布</td>
+						<td>宽广，可数百公里</td>
+						<td>宽广，覆盖范围大</td>
+					</tr>
+					<tr>
+						<td>降水特征</td>
+						<td>狂风暴雨，强度大</td>
+						<td>连续性降水，强度小</td>
+						<td>持续性阴雨，强度小</td>
+					</tr>
+					<tr>
+						<td>降水持续时间</td>
+						<td>短（数小时）</td>
+						<td>较长（一天左右）</td>
+						<td>长（数天至数周）</td>
+					</tr>
+					<tr>
+						<td>过境后天气</td>
+						<td>气温骤降，气压升高，转晴</td>
+						<td>气温升高，气压略降，转晴</td>
+						<td>天气变化不明显</td>
+					</tr>
+					<tr>
+						<td>典型实例</td>
+						<td>北方夏季暴雨、冬半年寒潮南下</br>（冬春季可能出现沙尘暴）</td>
+						<td>春季暖湿气流北上</td>
+						<td>梅雨(江淮准静止锋)、华南准静止锋、</br>昆明准静止锋、天山准静止锋</td>
+					</tr>
+				</tbody>
+			</table>
+			<button class="close-btn">关闭</button>
+		</div>
+	</div>
 
 	<script type="importmap">
 		{
@@ -744,13 +867,13 @@
 		document.getElementById('btn-advance').addEventListener('click', function() {
 			if (frontMode === 'cold') {
 				frontOffset += 0.3;
-				if (frontOffset > 3) frontOffset = -1;
+				if (frontOffset > 5) frontOffset = -2;
 			} else if (frontMode === 'warm') {
 				frontOffset -= 0.3;
-				if (frontOffset < -3) frontOffset = 1;
+				if (frontOffset < -5) frontOffset = 2;
 			} else {
 				stationaryPhase += 0.5;
-				frontOffset = Math.sin(stationaryPhase) * 0.6;
+				frontOffset = Math.sin(stationaryPhase) * 0.3;
 			}
 			updateFrontPosition();
 		});
@@ -793,20 +916,24 @@
 			frontOffset = 0;
 			stationaryPhase = 0;
 			// 冷锋坡度大，暖锋/准静止锋坡度小
-			frontSlopeFactor = mode === 'cold' ? 1.2 : (mode === 'warm' ? 0.9 : 1.05);
+			frontSlopeFactor = mode === 'cold' ? 1.2 : (mode === 'warm' ? 1.05: 0.9 );
 			coldAirGroup.scale.y = frontSlopeFactor;
 			frontalGroup.scale.y = frontSlopeFactor;
 			// 暖锋/准静止锋云层薄而宽且更小，冷锋云层厚而窄
 			const isWide = mode !== 'cold';
+			const isStationary = mode === 'stationary';
+			const thicknessScale = isStationary ? 0.55 : (isWide ? 0.72 : 1);
+			// 只缩放 X/Z（宽度），不缩放 Y（避免云团被压到锋面下方）
 			cloudGroup.scale.set(
-				isWide ? 1.35 : 1.2,
-				isWide ? 0.72 : 1,
+				isStationary ? 1.6 : (isWide ? 1.35 : 1.2),
+				1,
 				isWide ? 0.9 : 1.2
 			);
-			// 云团重新定位，暖锋/准静止锋隐藏约10%的云团
+			// 云团重新定位并单独缩放厚度
 			cloudClusters.forEach((cluster, i) => {
 				const cfg = cloudConfigs[i];
-				cluster.position.y = getColdAirHeight(cfg.x) + cfg.yOff;
+				cluster.position.y = getColdAirHeight(cfg.x) + cfg.yOff * thicknessScale;
+				cluster.scale.y = thicknessScale;
 				cluster.visible = !(isWide && (i === 12 || i === 13));
 			});
 			// 重建暖气团箭头
@@ -829,6 +956,17 @@
 			locateMode = !locateMode;
 			this.classList.toggle('active', locateMode);
 			this.textContent = locateMode ? '📍 添加地点(开)' : '📍 添加地点';
+		});
+
+		// 锋面对比对话框
+		const compareOverlay = document.getElementById('compare-overlay');
+		document.getElementById('btn-compare').addEventListener('click', function() {
+			compareOverlay.classList.add('show');
+		});
+		compareOverlay.addEventListener('click', function(e) {
+			if (e.target === compareOverlay || e.target.classList.contains('close-btn')) {
+				compareOverlay.classList.remove('show');
+			}
 		});
 
 		// ============ 地面点击：添加地点标记并显示信息 ============
@@ -960,17 +1098,17 @@
 
 			if (isPlaying) {
 			if (frontMode === 'cold') {
-				// 冷锋：向右移动（冷气团推动暖气团）
-				frontOffset += dt * 0.15;
-				if (frontOffset > 3) frontOffset = -1;
+				// 冷锋：向右移动（冷气团推动暖气团），速度较快
+				frontOffset += dt * 0.25;
+				if (frontOffset > 5) frontOffset = -2;
 			} else if (frontMode === 'warm') {
 				// 暖锋：向左移动（暖气团推动冷气团，方向相反）
-				frontOffset -= dt * 0.15;
-				if (frontOffset < -3) frontOffset = 1;
+				frontOffset -= dt * 0.2;
+				if (frontOffset < -5) frontOffset = 2;
 			} else {
 				// 准静止锋：小幅来回摆动
 				stationaryPhase += dt * 0.5;
-				frontOffset = Math.sin(stationaryPhase) * 0.6;
+				frontOffset = Math.sin(stationaryPhase) * 0.3;
 			}
 			updateFrontPosition();
 			// 实时刷新地点信息
